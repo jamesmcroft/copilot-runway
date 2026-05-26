@@ -4,6 +4,8 @@ A local web dashboard for visualizing and orchestrating [GitHub Copilot CLI](htt
 
 If you work across multiple repos with several Copilot CLI sessions running at once, Runway gives you a single control tower to see what's happening, read conversation history, and send prompts without switching terminals.
 
+![Copilot Runway dashboard showing projects, sessions, and conversation detail](docs/copilot-runway-screenshot.png)
+
 ## Features
 
 - **Project sidebar**: auto-discovers projects from the Copilot CLI data store; add custom folders on the fly
