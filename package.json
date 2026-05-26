@@ -27,7 +27,7 @@
   "author": "James Croft",
   "repository": {
     "type": "git",
-    "url": "https://github.com/jamesmcroft/copilot-runway.git"
+    "url": "git+https://github.com/jamesmcroft/copilot-runway.git"
   },
   "homepage": "https://github.com/jamesmcroft/copilot-runway",
   "license": "MIT",
