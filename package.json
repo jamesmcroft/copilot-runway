@@ -1,6 +1,6 @@
 {
   "name": "copilot-runway",
-  "version": "0.1.0",
+  "version": "0.0.0",
   "description": "A local web dashboard for visualizing and orchestrating multiple GitHub Copilot CLI sessions across multiple projects",
   "main": "server.js",
   "bin": {
