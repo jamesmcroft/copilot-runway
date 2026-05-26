@@ -1,0 +1,43 @@
+{
+  "name": "copilot-runway",
+  "version": "0.1.0",
+  "description": "A local web dashboard for visualizing and orchestrating multiple GitHub Copilot CLI sessions across multiple projects",
+  "main": "server.js",
+  "bin": {
+    "copilot-runway": "bin/copilot-runway.js"
+  },
+  "files": [
+    "bin/",
+    "public/",
+    "server.js",
+    "LICENSE",
+    "README.md"
+  ],
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "keywords": [
+    "github",
+    "copilot",
+    "cli",
+    "dashboard",
+    "session-manager"
+  ],
+  "author": "James Croft",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jamesmcroft/copilot-runway.git"
+  },
+  "homepage": "https://github.com/jamesmcroft/copilot-runway",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.0.0",
+    "express": "^4.21.0",
+    "js-yaml": "^4.1.0",
+    "marked": "^18.0.4"
+  }
+}

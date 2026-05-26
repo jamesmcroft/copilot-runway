@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Copilot Runway</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="stylesheet" href="styles.css">
+  <script>
+    // Apply theme immediately to prevent flash
+    (function() {
+      var pref = localStorage.getItem('copilot-dashboard-theme') || 'system';
+      var resolved = pref;
+      if (pref === 'system') {
+        resolved = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+      }
+      document.documentElement.setAttribute('data-theme', resolved);
+    })();
+  </script>
+  <script src="/vendor/marked.umd.js"></script>
+</head>
+<body>
+  <div class="app">
+    <!-- Header -->
+    <header class="header">
+      <h1><img src="logo.svg" alt="" class="header-logo"> Copilot Runway</h1>
+      <div class="header-stats">
+        <div class="stat">
+          <span class="stat-dot active"></span>
+          <span class="stat-value" id="stat-active">-</span> active
+        </div>
+        <div class="stat">
+          <span class="stat-value" id="stat-recent">-</span> this week
+        </div>
+        <div class="stat">
+          <span class="stat-value" id="stat-total">-</span> total
+        </div>
+      </div>
+      <div class="theme-switcher" id="theme-switcher">
+        <button class="theme-btn" data-theme="light" onclick="setTheme('light')" title="Light theme">
+          <span class="theme-icon">&#9728;</span>
+        </button>
+        <button class="theme-btn" data-theme="system" onclick="setTheme('system')" title="Sync with system">
+          <span class="theme-icon">&#128187;</span>
+        </button>
+        <button class="theme-btn active" data-theme="dark" onclick="setTheme('dark')" title="Dark theme">
+          <span class="theme-icon">&#9790;</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <h2>Projects</h2>
+        <button class="add-project-btn" onclick="toggleAddProject()" title="Add project folder">+</button>
+      </div>
+      <div class="add-project-form" id="add-project-form">
+        <input type="text" id="add-project-path" placeholder="C:\src\myproject">
+        <input type="text" id="add-project-name" placeholder="Name (optional)">
+        <div class="add-project-actions">
+          <button class="create-btn" onclick="addProject()">Add</button>
+          <button onclick="toggleAddProject()">Cancel</button>
+        </div>
+      </div>
+      <div class="sidebar-content">
+        <div class="filter-item active" data-filter="all" onclick="selectFilter('all')">
+          &#x25C9; All Sessions
+        </div>
+        <div class="filter-item" data-filter="active" onclick="selectFilter('active')">
+          &#x26A1; Active Only
+        </div>
+        <div id="project-list"></div>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main">
+      <div class="sessions-header">
+        <h2 id="main-title">All Sessions</h2>
+        <div class="sessions-controls">
+          <button class="toggle-btn" onclick="toggleNewSession()">+ New Session</button>
+          <button class="toggle-btn" onclick="refreshSessions()">&#x21BB; Refresh</button>
+        </div>
+      </div>
+
+      <div class="new-session-bar" id="new-session-bar">
+        <input type="text" id="new-session-cwd" placeholder="Project folder (e.g., C:\src\myproject)">
+        <input type="text" id="new-session-name" placeholder="Session name">
+        <select id="new-session-agent" class="agent-select">
+          <option value="">Default agent</option>
+        </select>
+        <button class="create-btn" onclick="createNewSession()">Create</button>
+        <button onclick="toggleNewSession()">Cancel</button>
+      </div>
+
+      <div class="session-list" id="session-list">
+        <!-- Sessions populated by JS -->
+      </div>
+
+      <!-- Chat input -->
+      <div class="chat-input-area">
+        <div class="agent-bar" id="agent-bar" style="display:none">
+          <label for="chat-agent">Agent:</label>
+          <select id="chat-agent" class="agent-select">
+            <option value="">Default</option>
+          </select>
+        </div>
+        <div class="chat-input-wrapper">
+          <textarea class="chat-input" id="chat-input" 
+            placeholder="Send a prompt to the selected session..." 
+            rows="1" disabled
+            onkeydown="handleChatKeydown(event)"></textarea>
+          <button class="send-btn" id="send-btn" onclick="sendMessage()" disabled>Send</button>
+        </div>
+      </div>
+    </main>
+
+    <!-- Detail Panel -->
+    <aside class="detail-panel" id="detail-panel">
+      <div class="resize-handle" id="resize-handle" title="Drag to resize, double-click to collapse"></div>
+      <div class="detail-header">
+        <h2>Session Detail</h2>
+        <button class="mobile-close-btn" onclick="closeMobilePanel()">&#x2715;</button>
+      </div>
+      <div class="detail-content" id="detail-content">
+        <div class="detail-empty">Select a session to view details</div>
+      </div>
+    </aside>
+
+    <!-- Mobile bottom nav -->
+    <nav class="mobile-nav" id="mobile-nav">
+      <button class="mobile-nav-btn" data-panel="sidebar" onclick="showMobilePanel('sidebar')">
+        <span class="mobile-nav-icon">&#x2630;</span>
+        <span>Projects</span>
+      </button>
+      <button class="mobile-nav-btn active" data-panel="main" onclick="showMobilePanel('main')">
+        <span class="mobile-nav-icon">&#x25A3;</span>
+        <span>Sessions</span>
+      </button>
+      <button class="mobile-nav-btn" data-panel="detail" onclick="showMobilePanel('detail')">
+        <span class="mobile-nav-icon">&#x2709;</span>
+        <span>Detail</span>
+      </button>
+    </nav>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
