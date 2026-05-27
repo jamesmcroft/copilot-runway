@@ -101,12 +101,62 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // State
-let sessions = [];
+const FILTER_DEFAULTS = {
+  search: '',
+  project: null,
+  status: 'all',
+  hasRef: false,
+};
+const SORT_DEFAULT = 'updated';
+
+const appState = {
+  filters: { ...FILTER_DEFAULTS },
+  sort: SORT_DEFAULT,
+  sessions: [],
+  selectedSessionId: null,
+};
+
 let projects = [];
-let selectedSessionId = null;
-let selectedFilter = 'all';
-let selectedProjectPath = null;
 let isStreaming = false;
+
+// Persistence
+const STORAGE_PREFIX = 'runway:';
+const STORAGE_KEYS = {
+  search: STORAGE_PREFIX + 'filter:search',
+  project: STORAGE_PREFIX + 'filter:project',
+  status: STORAGE_PREFIX + 'filter:status',
+  hasRef: STORAGE_PREFIX + 'filter:hasRef',
+  sort: STORAGE_PREFIX + 'sort',
+};
+
+function loadFiltersFromStorage() {
+  try {
+    appState.filters.search = localStorage.getItem(STORAGE_KEYS.search) ?? FILTER_DEFAULTS.search;
+    const project = localStorage.getItem(STORAGE_KEYS.project);
+    appState.filters.project = project && project !== 'null' ? project : FILTER_DEFAULTS.project;
+    appState.filters.status = localStorage.getItem(STORAGE_KEYS.status) ?? FILTER_DEFAULTS.status;
+    appState.filters.hasRef = (localStorage.getItem(STORAGE_KEYS.hasRef) ?? (FILTER_DEFAULTS.hasRef ? '1' : '0')) === '1';
+    appState.sort = localStorage.getItem(STORAGE_KEYS.sort) ?? SORT_DEFAULT;
+  } catch {
+    // Corrupted storage should never block boot.
+    appState.filters = { ...FILTER_DEFAULTS };
+    appState.sort = SORT_DEFAULT;
+  }
+}
+
+function persistFilters() {
+  try {
+    localStorage.setItem(STORAGE_KEYS.search, appState.filters.search || '');
+    if (appState.filters.project) {
+      localStorage.setItem(STORAGE_KEYS.project, appState.filters.project);
+    } else {
+      localStorage.removeItem(STORAGE_KEYS.project);
+    }
+    localStorage.setItem(STORAGE_KEYS.status, appState.filters.status);
+    localStorage.setItem(STORAGE_KEYS.hasRef, appState.filters.hasRef ? '1' : '0');
+    localStorage.setItem(STORAGE_KEYS.sort, appState.sort);
+  } catch {}
+}
 
 // Fetch helper
 async function api(path, options = {}) {
@@ -121,8 +171,40 @@ async function apiJson(path) {
 
 // Init
 async function init() {
+  loadFiltersFromStorage();
+  applyFiltersToControls();
   await Promise.all([loadStats(), loadProjects(), loadSessions(), loadAgents()]);
   startEventStream();
+}
+
+function applyFiltersToControls() {
+  const searchInput = document.getElementById('session-search');
+  if (searchInput) searchInput.value = appState.filters.search || '';
+  const sortSelect = document.getElementById('session-sort');
+  if (sortSelect) sortSelect.value = appState.sort;
+  const hasRefBox = document.getElementById('filter-has-ref');
+  if (hasRefBox) hasRefBox.checked = !!appState.filters.hasRef;
+  document.querySelectorAll('.status-filter-btn').forEach(el => {
+    el.classList.toggle('active', el.dataset.status === appState.filters.status);
+  });
+  updateMainTitle();
+}
+
+function updateMainTitle() {
+  const title = document.getElementById('main-title');
+  if (!title) return;
+  if (appState.filters.project) {
+    const project = projects.find(p => p.main_repo_path === appState.filters.project);
+    title.textContent = project ? project.name : 'Sessions';
+  } else if (appState.filters.status === 'active') {
+    title.textContent = 'Active Sessions';
+  } else if (appState.filters.status === 'inactive') {
+    title.textContent = 'Inactive Sessions';
+  } else if (appState.filters.status === 'stale') {
+    title.textContent = 'Stale Sessions';
+  } else {
+    title.textContent = 'All Sessions';
+  }
 }
 
 // Live event stream: subscribes to /api/events for push updates and
@@ -202,28 +284,29 @@ function handleSessionCreated() {
 
 function handleSessionStatusChange({ sessionId, pid }, status) {
   if (!sessionId) return;
-  const idx = sessions.findIndex(s => s.id === sessionId);
+  const idx = appState.sessions.findIndex(s => s.id === sessionId);
   if (idx >= 0) {
-    sessions[idx] = { ...sessions[idx], status, pid: status === 'active' ? (pid || null) : null };
-    if (selectedFilter === 'active' && status !== 'active') {
-      sessions.splice(idx, 1);
-    }
+    appState.sessions[idx] = {
+      ...appState.sessions[idx],
+      status,
+      pid: status === 'active' ? (pid || null) : null,
+    };
     renderSessions();
   } else if (status === 'active') {
     // Session became active that we hadn't seen yet (e.g. just created).
     loadSessions();
   }
   loadStats();
-  if (selectedSessionId === sessionId) {
+  if (appState.selectedSessionId === sessionId) {
     refreshSelectedSession();
   }
 }
 
 function handleSessionEnded({ sessionId }) {
   if (!sessionId) return;
-  const before = sessions.length;
-  sessions = sessions.filter(s => s.id !== sessionId);
-  if (sessions.length !== before) renderSessions();
+  const before = appState.sessions.length;
+  appState.sessions = appState.sessions.filter(s => s.id !== sessionId);
+  if (appState.sessions.length !== before) renderSessions();
   loadStats();
 }
 
@@ -236,23 +319,23 @@ function handleDbActivity() {
   dbActivityCoalesce = setTimeout(() => {
     dbActivityCoalesce = null;
     loadStats();
-    if (selectedSessionId) refreshSelectedSession();
+    if (appState.selectedSessionId) refreshSelectedSession();
   }, 500);
 }
 
 async function refreshSelectedSession() {
-  if (!selectedSessionId || isStreaming) return;
+  if (!appState.selectedSessionId || isStreaming) return;
   // In-flight de-dup: at most one fetch in flight and one queued.
   if (refreshInFlight) {
     refreshPending = true;
     return;
   }
-  const requestedSessionId = selectedSessionId;
+  const requestedSessionId = appState.selectedSessionId;
   refreshInFlight = (async () => {
     try {
       const detail = await apiJson(`/api/sessions/${requestedSessionId}`);
       // Stale-result guard: discard if the user switched sessions while we were fetching.
-      if (selectedSessionId !== requestedSessionId) return;
+      if (appState.selectedSessionId !== requestedSessionId) return;
       renderDetail(detail);
     } catch {}
   })();
@@ -333,37 +416,95 @@ async function loadProjects() {
 function renderProjects() {
   const container = document.getElementById('project-list');
   container.innerHTML = projects.map((p, i) => `
-    <div class="project-item ${selectedProjectPath === p.main_repo_path ? 'active' : ''}" 
+    <div class="project-item ${appState.filters.project === p.main_repo_path ? 'active' : ''}" 
          data-project-index="${i}" onclick="selectProjectByIndex(${i})">
       <div class="project-name">${esc(p.name)}</div>
       <div class="project-path">${esc(shortenPath(p.main_repo_path))}</div>
     </div>
   `).join('');
+  // Project names may not have been loaded when init() ran updateMainTitle.
+  updateMainTitle();
 }
 
 // Sessions
 async function loadSessions() {
   try {
-    let url = '/api/sessions?limit=100';
-    if (selectedFilter === 'active') {
-      url = '/api/sessions/active';
-    } else if (selectedProjectPath) {
-      url = `/api/sessions?cwd=${encodeURIComponent(selectedProjectPath)}&limit=100`;
-    }
-    sessions = await apiJson(url);
+    appState.sessions = await apiJson('/api/sessions?limit=200');
     renderSessions();
   } catch {}
 }
 
+function applyFiltersAndSort(rawSessions) {
+  const { search, project, status, hasRef } = appState.filters;
+  const searchLower = (search || '').trim().toLowerCase();
+
+  let list = rawSessions.filter(s => {
+    if (searchLower) {
+      const haystack = [s.name, s.repository, s.branch, s.summary]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+      if (!haystack.includes(searchLower)) return false;
+    }
+    if (project) {
+      // NOTE: prefix match is intentionally naive here; see #32.
+      if (!s.cwd || !s.cwd.startsWith(project)) return false;
+    }
+    if (status && status !== 'all') {
+      if (s.status !== status) return false;
+    }
+    if (hasRef) {
+      if (!s.has_refs) return false;
+    }
+    return true;
+  });
+
+  const sort = appState.sort;
+  const ts = (v) => (v ? new Date(v).getTime() : 0);
+  if (sort === 'created') {
+    list.sort((a, b) => ts(b.created_at) - ts(a.created_at));
+  } else if (sort === 'turns') {
+    list.sort((a, b) => (b.turn_count || 0) - (a.turn_count || 0));
+  } else if (sort === 'stalled') {
+    const activeList = list.filter(s => s.status === 'active')
+      .sort((a, b) => ts(a.updated_at) - ts(b.updated_at));
+    const otherList = list.filter(s => s.status !== 'active')
+      .sort((a, b) => ts(b.updated_at) - ts(a.updated_at));
+    list = activeList.concat(otherList);
+  } else {
+    list.sort((a, b) => ts(b.updated_at) - ts(a.updated_at));
+  }
+
+  return list;
+}
+
+function describeActiveFilters() {
+  const parts = [];
+  const { search, project, status, hasRef } = appState.filters;
+  if (search) parts.push(`search "${search}"`);
+  if (project) {
+    const proj = projects.find(p => p.main_repo_path === project);
+    parts.push(`project "${proj ? proj.name : shortenPath(project)}"`);
+  }
+  if (status && status !== 'all') parts.push(`status ${status}`);
+  if (hasRef) parts.push('has linked PR/issue');
+  return parts.join(' + ');
+}
+
 function renderSessions() {
   const container = document.getElementById('session-list');
-  if (sessions.length === 0) {
-    container.innerHTML = '<div class="detail-empty">No sessions found</div>';
+  const visible = applyFiltersAndSort(appState.sessions);
+  if (visible.length === 0) {
+    const desc = describeActiveFilters();
+    const msg = desc
+      ? `No sessions match: ${esc(desc)}`
+      : 'No sessions found';
+    container.innerHTML = `<div class="detail-empty">${msg}</div>`;
     return;
   }
 
-  container.innerHTML = sessions.map(s => `
-    <div class="session-card ${selectedSessionId === s.id ? 'selected' : ''}" 
+  container.innerHTML = visible.map(s => `
+    <div class="session-card ${appState.selectedSessionId === s.id ? 'selected' : ''}" 
          onclick="selectSession('${s.id}')">
       <div class="session-card-header">
         <div class="session-status-dot ${s.status}"></div>
@@ -381,7 +522,7 @@ function renderSessions() {
 
 // Session detail
 async function selectSession(id) {
-  selectedSessionId = id;
+  appState.selectedSessionId = id;
   renderSessions();
 
   // Auto-expand detail panel if collapsed (desktop)
@@ -576,19 +717,14 @@ function renderDetail(detail) {
 }
 
 // Filters
-function selectFilter(filter) {
-  selectedFilter = filter;
-  selectedProjectPath = null;
-
-  document.querySelectorAll('.filter-item').forEach(el => {
-    el.classList.toggle('active', el.dataset.filter === filter);
+function selectFilter(status) {
+  appState.filters.status = status;
+  persistFilters();
+  document.querySelectorAll('.status-filter-btn').forEach(el => {
+    el.classList.toggle('active', el.dataset.status === status);
   });
-  document.querySelectorAll('.project-item').forEach(el => el.classList.remove('active'));
-
-  document.getElementById('main-title').textContent =
-    filter === 'active' ? 'Active Sessions' : 'All Sessions';
-
-  loadSessions();
+  updateMainTitle();
+  renderSessions();
 }
 
 function selectProjectByIndex(index) {
@@ -598,23 +734,51 @@ function selectProjectByIndex(index) {
 }
 
 function selectProject(path) {
-  selectedFilter = null;
-  selectedProjectPath = path;
+  appState.filters.project = path;
+  persistFilters();
 
-  document.querySelectorAll('.filter-item').forEach(el => el.classList.remove('active'));
   document.querySelectorAll('.project-item').forEach(el => {
     const idx = parseInt(el.dataset.projectIndex);
     el.classList.toggle('active', projects[idx]?.main_repo_path === path);
   });
 
-  const project = projects.find(p => p.main_repo_path === path);
-  document.getElementById('main-title').textContent = project ? project.name : 'Sessions';
-
-  loadSessions();
+  updateMainTitle();
+  renderSessions();
 
   if (window.innerWidth <= 768) {
     showMobilePanel('main');
   }
+}
+
+function clearProjectFilter() {
+  appState.filters.project = null;
+  persistFilters();
+  document.querySelectorAll('.project-item').forEach(el => el.classList.remove('active'));
+  updateMainTitle();
+  renderSessions();
+}
+
+// Search input (debounced)
+let searchDebounceTimer = null;
+function handleSearchInput(value) {
+  appState.filters.search = value;
+  if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
+  searchDebounceTimer = setTimeout(() => {
+    persistFilters();
+    renderSessions();
+  }, 250);
+}
+
+function handleSortChange(value) {
+  appState.sort = value;
+  persistFilters();
+  renderSessions();
+}
+
+function handleHasRefToggle(checked) {
+  appState.filters.hasRef = !!checked;
+  persistFilters();
+  renderSessions();
 }
 
 // New session
@@ -623,7 +787,7 @@ function toggleNewSession() {
   bar.classList.toggle('visible');
   if (bar.classList.contains('visible')) {
     const cwdInput = document.getElementById('new-session-cwd');
-    if (selectedProjectPath) cwdInput.value = selectedProjectPath;
+    if (appState.filters.project) cwdInput.value = appState.filters.project;
     document.getElementById('new-session-name').focus();
   }
 }
@@ -648,7 +812,7 @@ function sendMessage() {
   const agent = document.getElementById('chat-agent')?.value || undefined;
   input.value = '';
   autoResizeTextarea(input);
-  sendPrompt(prompt, selectedSessionId, undefined, undefined, agent);
+  sendPrompt(prompt, appState.selectedSessionId, undefined, undefined, agent);
 }
 
 async function sendPrompt(prompt, sessionId, cwd, name, agent) {
@@ -719,7 +883,7 @@ async function sendPrompt(prompt, sessionId, cwd, name, agent) {
   // Refresh sessions after a moment
   setTimeout(() => {
     loadSessions();
-    if (selectedSessionId) selectSession(selectedSessionId);
+    if (appState.selectedSessionId) selectSession(appState.selectedSessionId);
   }, 2000);
 }
 
