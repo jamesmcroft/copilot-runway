@@ -663,7 +663,7 @@ test('terminal: linux focus-fails with a non-no-wm-tool reason gets the generic 
   } finally { await stop(server); }
 });
 
-test('terminal: Windows focus-fails gets the generic hint', async () => {
+test('terminal: Windows focus-fails with no-window-handle gets the locate hint', async () => {
   const { spawn } = makeSpawn(['ok']);
   const app = makeApp({
     spawn,
@@ -681,7 +681,33 @@ test('terminal: Windows focus-fails gets the generic hint', async () => {
     const res = await fetch(`${baseUrl}/api/sessions/s1/launch/terminal`, { method: 'POST' });
     const body = await res.json();
     assert.equal(body.focused, false);
-    assert.ok(body.hint && body.hint.includes('not supported on this platform'), `hint: ${body.hint}`);
+    assert.equal(body.reason, 'no-window-handle');
+    assert.ok(body.hint && body.hint.includes('Could not locate the existing terminal window'),
+              `hint: ${body.hint}`);
+  } finally { await stop(server); }
+});
+
+test('terminal: Windows focus-fails with foreground-blocked surfaces blocked-by-Windows hint', async () => {
+  const { spawn } = makeSpawn(['ok']);
+  const app = makeApp({
+    spawn,
+    platform: 'win32',
+    readLaunchers: () => ({}),
+    fsAccess: async () => {},
+    getSession: sessionStub('s1', 'C:/work/repo'),
+    getSessionPid: () => 4242,
+    isPidAlive: () => true,
+    focusWindow: async () => ({ focused: false, reason: 'foreground-blocked' }),
+    env: {},
+  });
+  const { server, baseUrl } = await start(app);
+  try {
+    const res = await fetch(`${baseUrl}/api/sessions/s1/launch/terminal`, { method: 'POST' });
+    const body = await res.json();
+    assert.equal(body.focused, false);
+    assert.equal(body.reason, 'foreground-blocked');
+    assert.ok(body.hint && body.hint.includes('Windows blocked focus from the background'),
+              `hint: ${body.hint}`);
   } finally { await stop(server); }
 });
 
