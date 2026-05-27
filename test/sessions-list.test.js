@@ -79,6 +79,14 @@ insertTurn.run('long', 0, 'hi', longText, '2025-01-01T00:00:00Z');
 insertSession.run('empty', '/tmp/repo', 'octo/repo', 'main', 'Empty session',
   '2025-01-01T00:00:00Z', '2025-01-01T01:00:00Z', 'cli');
 
+// many-refs: 6 PR refs to verify the server sends all of them so the
+// client can render an accurate "+N more" overflow count.
+insertSession.run('many-refs', '/tmp/repo', 'octo/repo', 'main', 'Many refs session',
+  '2025-01-01T00:00:00Z', '2025-01-01T02:00:00Z', 'cli');
+for (let i = 1; i <= 6; i++) {
+  insertRef.run('many-refs', 'pr', String(100 + i), `2025-01-01T00:0${i}:00Z`);
+}
+
 seedDb.close();
 
 // Seed the session-agent JSON only for the populated session so we cover
@@ -158,4 +166,15 @@ test('empty session degrades gracefully: null agent, null preview, empty refs', 
   assert.deepEqual(empty.refs, []);
   assert.equal(empty.turn_count, 0);
   assert.equal(empty.has_refs, false);
+});
+
+test('refs are not capped server-side so the client +N more count is truthful', async () => {
+  const list = await fetchList();
+  const many = list.find(s => s.id === 'many-refs');
+  assert.ok(many, 'many-refs session present');
+  assert.equal(many.refs.length, 6);
+  // Sanity: all entries are PRs and carry the expected ref_value shape.
+  assert.ok(many.refs.every(r => r.ref_type === 'pr'));
+  const values = many.refs.map(r => r.ref_value).sort();
+  assert.deepEqual(values, ['101', '102', '103', '104', '105', '106']);
 });
