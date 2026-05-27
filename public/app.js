@@ -572,12 +572,52 @@ function describeActiveFilters() {
   return parts.join(' + ');
 }
 
+// Cap on rendered ref badges. Anything beyond this collapses into a
+// non-link "+N more" pill so the sidebar card stays compact.
+const SESSION_CARD_REF_LIMIT = 3;
+
+function renderSessionRefBadges(s) {
+  const refs = Array.isArray(s.refs) ? s.refs : [];
+  if (refs.length === 0) return '';
+  const repo = s.repository;
+  // Without a repo we have no host context to build a working link, so
+  // older / terminal-started sessions just render nothing here.
+  if (!repo) return '';
+  const visible = refs.slice(0, SESSION_CARD_REF_LIMIT);
+  const overflow = refs.length - visible.length;
+  const pills = visible.map(r => {
+    // GitHub redirects /issues/<n> to /pull/<n> automatically for PR
+    // numbers, so a single URL shape works for both ref types.
+    const url = `https://github.com/${encodeURIComponent(repo).replace(/%2F/gi, '/')}/issues/${encodeURIComponent(r.ref_value)}`;
+    const label = `#${esc(String(r.ref_value))}`;
+    const title = r.ref_type === 'pr' ? `Pull request #${esc(String(r.ref_value))}` : `Issue #${esc(String(r.ref_value))}`;
+    return `<a class="session-badge ref" href="${url}" target="_blank" rel="noopener" title="${title}" onclick="event.stopPropagation()">${label}</a>`;
+  }).join('');
+  const more = overflow > 0
+    ? `<span class="session-badge ref-more" title="${overflow} more linked ref${overflow === 1 ? '' : 's'}">+${overflow} more</span>`
+    : '';
+  return pills + more;
+}
+
 function renderSessionCard(s) {
   const pinned = pinnedSessionIds.has(s.id);
   const inFlight = pinTogglesInFlight.has(s.id);
   const pinTitle = pinned ? 'Unpin session' : 'Pin session';
   const pinClass = pinned ? 'pin-btn pinned' : 'pin-btn';
   const busyAttrs = inFlight ? ' disabled aria-busy="true"' : '';
+  const agentBadge = s.agent
+    ? `<span class="session-badge agent" title="Last agent">${esc(s.agent)}</span>`
+    : '';
+  const turnsBadge = s.turn_count
+    ? `<span class="session-badge turns" title="Conversation turns">${s.turn_count} ${s.turn_count === 1 ? 'turn' : 'turns'}</span>`
+    : '';
+  const refBadges = renderSessionRefBadges(s);
+  const cardMeta = (agentBadge || turnsBadge || refBadges)
+    ? `<div class="session-card-meta">${agentBadge}${turnsBadge}${refBadges}</div>`
+    : '';
+  const preview = s.last_assistant_preview
+    ? `<div class="session-last-msg" title="${esc(s.last_assistant_preview)}">${esc(s.last_assistant_preview)}</div>`
+    : '';
   return `
     <div class="session-card ${appState.selectedSessionId === s.id ? 'selected' : ''}"
          onclick="selectSession('${s.id}')">
@@ -594,6 +634,8 @@ function renderSessionCard(s) {
         ${s.branch ? `<span class="session-meta-item">&#x1F33F; ${esc(s.branch)}</span>` : ''}
         ${s.repository ? `<span class="session-meta-item">&#x1F4E6; ${esc(s.repository)}</span>` : ''}
       </div>
+      ${preview}
+      ${cardMeta}
     </div>
   `;
 }
