@@ -12,27 +12,65 @@ process.env.HOME = tmpHome;
 process.env.USERPROFILE = tmpHome;
 
 const { PINS_FILE } = require('../lib/paths');
-const { loadPins, savePins, pinSession, unpinSession } = require('../lib/runway/pins');
+const {
+  loadPins,
+  savePins,
+  pinSession,
+  unpinSession,
+  PinsCorruptError,
+} = require('../lib/runway/pins');
 
 function resetPinsFile() {
   try { fs.unlinkSync(PINS_FILE); } catch {}
 }
+
+// Suppress expected console.error noise from the negative-path tests so
+// test output stays readable. Restored after the suite.
+const originalConsoleError = console.error;
+test.before(() => { console.error = () => {}; });
+test.after(() => { console.error = originalConsoleError; });
 
 test('loadPins returns empty when file is missing', () => {
   resetPinsFile();
   assert.deepEqual(loadPins(), { sessions: [] });
 });
 
-test('loadPins returns empty when file is malformed JSON', () => {
+test('loadPins throws PinsCorruptError when file is malformed JSON', () => {
   resetPinsFile();
   fs.writeFileSync(PINS_FILE, '{ not json');
-  assert.deepEqual(loadPins(), { sessions: [] });
+  assert.throws(() => loadPins(), PinsCorruptError);
+});
+
+test('loadPins throws PinsCorruptError when file is not a JSON object', () => {
+  resetPinsFile();
+  fs.writeFileSync(PINS_FILE, JSON.stringify(['a', 'b']));
+  assert.throws(() => loadPins(), PinsCorruptError);
 });
 
 test('loadPins tolerates missing sessions key (forward-compatible)', () => {
   resetPinsFile();
   fs.writeFileSync(PINS_FILE, JSON.stringify({ unrelated: 'value' }));
   assert.deepEqual(loadPins(), { sessions: [] });
+});
+
+test('pinSession does NOT clobber a malformed pins file', () => {
+  // Regression: previously loadPins swallowed parse errors and returned
+  // empty, so the next savePins would overwrite the user's real pins
+  // (or an unreadable file) with `{ "sessions": [] }`. The contract is
+  // now: refuse to write until the user fixes the file.
+  resetPinsFile();
+  const malformed = '{ not json';
+  fs.writeFileSync(PINS_FILE, malformed);
+  assert.throws(() => pinSession('abc'), PinsCorruptError);
+  assert.equal(fs.readFileSync(PINS_FILE, 'utf8'), malformed);
+});
+
+test('unpinSession does NOT clobber a malformed pins file', () => {
+  resetPinsFile();
+  const malformed = 'totally not json at all';
+  fs.writeFileSync(PINS_FILE, malformed);
+  assert.throws(() => unpinSession('abc'), PinsCorruptError);
+  assert.equal(fs.readFileSync(PINS_FILE, 'utf8'), malformed);
 });
 
 test('pinSession persists and deduplicates', () => {
