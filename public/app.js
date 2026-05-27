@@ -779,7 +779,9 @@ function renderDetail(detail) {
     <div class="detail-section">
       <div class="detail-section-title">Actions</div>
       <div class="session-actions">
-        <button class="action-btn primary" onclick="resumeInTerminal('${detail.id}')">Open in Terminal</button>
+        <button class="action-btn primary" onclick="launchVSCode('${detail.id}')">Open in VS Code</button>
+        <button class="action-btn primary" onclick="launchTerminal('${detail.id}')">Open in Terminal</button>
+        <button class="action-btn" onclick="resumeInTerminal('${detail.id}')">Copy command</button>
       </div>
     </div>
   `;
@@ -1050,6 +1052,41 @@ function resumeInTerminal(sessionId) {
   }).catch(() => {
     prompt('Run this in your terminal:', cmd);
   });
+}
+
+// Launch VS Code at the session's cwd via the server-side spawn endpoint.
+async function launchVSCode(sessionId) {
+  try {
+    const res = await fetch(`/api/sessions/${sessionId}/launch/vscode`, { method: 'POST' });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      alert(body.error || `Failed to launch VS Code (HTTP ${res.status})`);
+      return;
+    }
+    if (body && body.ok === false) {
+      alert(body.hint || body.error || 'Failed to launch VS Code');
+    }
+  } catch (err) {
+    alert(`Failed to launch VS Code: ${err.message}`);
+  }
+}
+
+// Launch a new terminal that auto-runs `copilot --resume=<id>` at the
+// session's cwd, via the server-side spawn endpoint.
+async function launchTerminal(sessionId) {
+  try {
+    const res = await fetch(`/api/sessions/${sessionId}/launch/terminal`, { method: 'POST' });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      alert(body.error || `Failed to launch terminal (HTTP ${res.status})`);
+      return;
+    }
+    if (body && body.ok === false) {
+      alert(body.hint || body.error || 'Failed to launch terminal');
+    }
+  } catch (err) {
+    alert(`Failed to launch terminal: ${err.message}`);
+  }
 }
 
 // Chat input handling
