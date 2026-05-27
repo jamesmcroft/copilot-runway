@@ -753,20 +753,40 @@ function makeFocusRunner(scripted) {
   return { run, calls };
 }
 
-test('focusExisting Windows: invokes powershell with the focus script and TargetPid', async () => {
+test('focusExisting Windows: invokes powershell with bound TargetPid in a script block', async () => {
+  // Regression: previously the route appended ['-TargetPid', '1234']
+  // AFTER the -Command string, which PowerShell consumes as its own
+  // process args (not script args). $TargetPid was always 0 and the
+  // helper always failed. The script must wrap the body in `& { ... } -TargetPid <n>`
+  // inside a single -Command argument.
   const { run, calls } = makeFocusRunner([{ code: 0, stdout: 'OK\r\n', stderr: '' }]);
   const r = await focusExisting(1234, 'win32', run);
   assert.deepEqual(r, { focused: true });
   assert.equal(calls.length, 1);
   assert.equal(calls[0].bin, 'powershell');
-  assert.ok(calls[0].args.includes('-TargetPid'));
-  assert.ok(calls[0].args.includes('1234'));
+  assert.deepEqual(calls[0].args.slice(0, 3), ['-NoProfile', '-NonInteractive', '-Command']);
+  assert.equal(calls[0].args.length, 4, 'no extra tokens after the -Command script');
+  const script = calls[0].args[3];
+  assert.ok(script.startsWith('& {'), `script must open with script block: ${script.slice(0, 40)}`);
+  assert.ok(script.includes('param([int]$TargetPid)'));
+  assert.ok(script.includes('AttachThreadInput'));
+  assert.ok(script.includes('BringWindowToTop'));
+  assert.ok(script.includes('SetForegroundWindow'));
+  assert.ok(/} -TargetPid 1234$/.test(script), `script must end with } -TargetPid 1234: ${script.slice(-40)}`);
 });
 
-test('focusExisting Windows: powershell exits non-zero -> focused:false', async () => {
+test('focusExisting Windows: powershell exit code 1 -> reason no-window-handle', async () => {
   const { run } = makeFocusRunner([{ code: 1, stdout: '', stderr: '' }]);
   const r = await focusExisting(1234, 'win32', run);
   assert.equal(r.focused, false);
+  assert.equal(r.reason, 'no-window-handle');
+});
+
+test('focusExisting Windows: powershell exit code 2 -> reason foreground-blocked', async () => {
+  const { run } = makeFocusRunner([{ code: 2, stdout: '', stderr: '' }]);
+  const r = await focusExisting(1234, 'win32', run);
+  assert.equal(r.focused, false);
+  assert.equal(r.reason, 'foreground-blocked');
 });
 
 test('focusExisting macOS: invokes osascript with System Events frontmost script', async () => {
