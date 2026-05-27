@@ -591,7 +591,7 @@ test('terminal: pid alive + focus succeeds skips spawn and reports focused:true'
   } finally { await stop(server); }
 });
 
-test('terminal: pid alive + focus fails falls through to spawn with focused:false + hint', async () => {
+test('terminal: linux focus-fails with reason no-wm-tool surfaces install-tools hint', async () => {
   const { spawn, calls } = makeSpawn(['ok']);
   const app = makeApp({
     spawn,
@@ -610,8 +610,78 @@ test('terminal: pid alive + focus fails falls through to spawn with focused:fals
     const body = await res.json();
     assert.equal(body.ok, true);
     assert.equal(body.focused, false);
-    assert.ok(body.hint && body.hint.includes('not supported'));
+    assert.equal(body.reason, 'no-wm-tool');
+    assert.ok(body.hint && body.hint.includes('wmctrl'), `hint: ${body.hint}`);
+    assert.ok(body.hint.includes('xdotool'), `hint: ${body.hint}`);
     assert.equal(calls.length, 1, 'spawn happens when focus fails');
+  } finally { await stop(server); }
+});
+
+test('terminal: macOS focus-fails surfaces Accessibility-permission hint', async () => {
+  const { spawn, calls } = makeSpawn(['ok']);
+  const app = makeApp({
+    spawn,
+    platform: 'darwin',
+    readLaunchers: () => ({}),
+    fsAccess: async () => {},
+    getSession: sessionStub('s1', '/Users/me/repo'),
+    getSessionPid: () => 4242,
+    isPidAlive: () => true,
+    focusWindow: async () => ({ focused: false, reason: 'osascript-failed' }),
+    env: {},
+  });
+  const { server, baseUrl } = await start(app);
+  try {
+    const res = await fetch(`${baseUrl}/api/sessions/s1/launch/terminal`, { method: 'POST' });
+    const body = await res.json();
+    assert.equal(body.ok, true);
+    assert.equal(body.focused, false);
+    assert.ok(body.hint && body.hint.includes('Accessibility'), `hint: ${body.hint}`);
+    assert.equal(calls.length, 1);
+  } finally { await stop(server); }
+});
+
+test('terminal: linux focus-fails with a non-no-wm-tool reason gets the generic hint', async () => {
+  const { spawn } = makeSpawn(['ok']);
+  const app = makeApp({
+    spawn,
+    platform: 'linux',
+    readLaunchers: () => ({}),
+    fsAccess: async () => {},
+    getSession: sessionStub('s1', '/work/repo'),
+    getSessionPid: () => 4242,
+    isPidAlive: () => true,
+    focusWindow: async () => ({ focused: false, reason: 'focus-failed' }),
+    env: {},
+  });
+  const { server, baseUrl } = await start(app);
+  try {
+    const res = await fetch(`${baseUrl}/api/sessions/s1/launch/terminal`, { method: 'POST' });
+    const body = await res.json();
+    assert.equal(body.focused, false);
+    assert.ok(body.hint && body.hint.includes('not supported on this platform'), `hint: ${body.hint}`);
+  } finally { await stop(server); }
+});
+
+test('terminal: Windows focus-fails gets the generic hint', async () => {
+  const { spawn } = makeSpawn(['ok']);
+  const app = makeApp({
+    spawn,
+    platform: 'win32',
+    readLaunchers: () => ({}),
+    fsAccess: async () => {},
+    getSession: sessionStub('s1', 'C:/work/repo'),
+    getSessionPid: () => 4242,
+    isPidAlive: () => true,
+    focusWindow: async () => ({ focused: false, reason: 'no-window-handle' }),
+    env: {},
+  });
+  const { server, baseUrl } = await start(app);
+  try {
+    const res = await fetch(`${baseUrl}/api/sessions/s1/launch/terminal`, { method: 'POST' });
+    const body = await res.json();
+    assert.equal(body.focused, false);
+    assert.ok(body.hint && body.hint.includes('not supported on this platform'), `hint: ${body.hint}`);
   } finally { await stop(server); }
 });
 
