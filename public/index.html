@@ -64,12 +64,6 @@
         </div>
       </div>
       <div class="sidebar-content">
-        <div class="status-filter-group">
-          <button class="status-filter-btn active" data-status="all" onclick="selectFilter('all')">All</button>
-          <button class="status-filter-btn" data-status="active" onclick="selectFilter('active')">Active</button>
-          <button class="status-filter-btn" data-status="inactive" onclick="selectFilter('inactive')">Inactive</button>
-          <button class="status-filter-btn" data-status="stale" onclick="selectFilter('stale')">Stale</button>
-        </div>
         <div class="project-list-header">
           <span>Projects</span>
           <button class="clear-project-btn" onclick="clearProjectFilter()" title="Clear project filter">&#x2715;</button>
@@ -89,6 +83,12 @@
       </div>
 
       <div class="sessions-toolbar">
+        <div class="status-filter-group">
+          <button class="status-filter-btn active" data-status="all" onclick="selectFilter('all')">All</button>
+          <button class="status-filter-btn" data-status="active" onclick="selectFilter('active')">Active</button>
+          <button class="status-filter-btn" data-status="inactive" onclick="selectFilter('inactive')">Inactive</button>
+          <button class="status-filter-btn" data-status="stale" onclick="selectFilter('stale')">Stale</button>
+        </div>
         <input id="session-search" type="search" placeholder="Search sessions..." oninput="handleSearchInput(this.value)">
         <select id="session-sort" onchange="handleSortChange(this.value)">
           <option value="updated">Recently updated</option>
