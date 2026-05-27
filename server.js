@@ -1,5 +1,6 @@
 const express = require('express');
 const path = require('path');
+const { EventEmitter } = require('events');
 const { exec } = require('child_process');
 
 // Trigger ~/.runway directory creation as a side effect of importing paths
@@ -10,6 +11,16 @@ const sessionsRouter = require('./lib/routes/sessions');
 const sendRouter = require('./lib/routes/send');
 const agentsRouter = require('./lib/routes/agents');
 const statsRouter = require('./lib/routes/stats');
+const createEventsRouter = require('./lib/routes/events');
+const { createLifecycleWatcher } = require('./lib/watchers/lifecycle');
+const { createDbWatcher } = require('./lib/watchers/db');
+
+// Shared event bus: lifecycle and DB watchers publish here, the SSE
+// router fans events out to connected dashboard clients.
+const runwayEvents = new EventEmitter();
+runwayEvents.setMaxListeners(0);
+createLifecycleWatcher(runwayEvents).start();
+createDbWatcher(runwayEvents).start();
 
 const app = express();
 app.use(express.json());
@@ -43,6 +54,7 @@ app.use('/api/sessions', sendRouter);
 app.use('/api/sessions', sessionsRouter);
 app.use('/api/agents', agentsRouter);
 app.use('/api/stats', statsRouter);
+app.use('/api/events', createEventsRouter(runwayEvents));
 
 const url = `http://127.0.0.1:${PORT}`;
 
