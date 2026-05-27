@@ -123,6 +123,10 @@ let isStreaming = false;
 // pin/unpin and membership checks stay O(1) during re-renders triggered
 // by SSE events.
 let pinnedSessionIds = new Set();
+// Session ids with a pin/unpin request currently in flight. Used to
+// reject rapid repeat clicks so two simultaneous requests can not race
+// and leave the UI out of sync with the server.
+const pinTogglesInFlight = new Set();
 
 // Persistence
 const STORAGE_PREFIX = 'runway:';
@@ -470,11 +474,17 @@ async function togglePin(sessionId, event) {
     event.stopPropagation();
     event.preventDefault();
   }
+  // In-flight guard: ignore the click entirely if a request for this
+  // session is already pending. Two simultaneous requests could race and
+  // leave the UI showing the opposite of the server's last write.
+  if (pinTogglesInFlight.has(sessionId)) return;
+
   const wasPinned = pinnedSessionIds.has(sessionId);
   // Optimistic UI: flip locally so the user gets immediate feedback,
   // then reconcile from the server's response (or revert on failure).
   if (wasPinned) pinnedSessionIds.delete(sessionId);
   else pinnedSessionIds.add(sessionId);
+  pinTogglesInFlight.add(sessionId);
   renderSessions();
   try {
     const res = await api(`/api/pins/sessions/${encodeURIComponent(sessionId)}`, {
@@ -483,11 +493,12 @@ async function togglePin(sessionId, event) {
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const pins = await res.json();
     pinnedSessionIds = new Set(Array.isArray(pins?.sessions) ? pins.sessions : []);
-    renderSessions();
   } catch {
     // Revert on failure so client state matches the server.
     if (wasPinned) pinnedSessionIds.add(sessionId);
     else pinnedSessionIds.delete(sessionId);
+  } finally {
+    pinTogglesInFlight.delete(sessionId);
     renderSessions();
   }
 }
@@ -563,8 +574,10 @@ function describeActiveFilters() {
 
 function renderSessionCard(s) {
   const pinned = pinnedSessionIds.has(s.id);
+  const inFlight = pinTogglesInFlight.has(s.id);
   const pinTitle = pinned ? 'Unpin session' : 'Pin session';
   const pinClass = pinned ? 'pin-btn pinned' : 'pin-btn';
+  const busyAttrs = inFlight ? ' disabled aria-busy="true"' : '';
   return `
     <div class="session-card ${appState.selectedSessionId === s.id ? 'selected' : ''}"
          onclick="selectSession('${s.id}')">
@@ -572,7 +585,7 @@ function renderSessionCard(s) {
         <div class="session-status-dot ${s.status}"></div>
         <div class="session-title">${esc(s.name || s.summary || s.id.substring(0, 8))}</div>
         <button class="${pinClass}" title="${pinTitle}" aria-label="${pinTitle}"
-                aria-pressed="${pinned ? 'true' : 'false'}"
+                aria-pressed="${pinned ? 'true' : 'false'}"${busyAttrs}
                 onclick="togglePin('${s.id}', event)">&#x1F4CC;</button>
         <div class="session-time">${timeAgo(s.updated_at)}</div>
       </div>
