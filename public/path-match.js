@@ -19,7 +19,11 @@
 
   function normalize(p, winLike) {
     let s = String(p).replace(/[\\/]+$/, '');
-    if (winLike) s = s.toLowerCase();
+    if (winLike) {
+      // Collapse both separators so mixed-style paths (git often emits
+      // forward slashes on Windows) compare cleanly.
+      s = s.replace(/\\/g, '/').toLowerCase();
+    }
     return s;
   }
 
@@ -30,6 +34,9 @@
     const p = normalize(project, winLike);
     if (!c || !p) return false;
     if (c === p) return true;
+    if (winLike) {
+      return c.startsWith(p + '/');
+    }
     return c.startsWith(p + '\\') || c.startsWith(p + '/');
   }
 
