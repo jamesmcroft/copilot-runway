@@ -13,6 +13,9 @@ const agentsRouter = require('./lib/routes/agents');
 const statsRouter = require('./lib/routes/stats');
 const pinsRouter = require('./lib/routes/pins');
 const createEventsRouter = require('./lib/routes/events');
+const { createLaunchRouter } = require('./lib/launch');
+const { openSessionStoreDb } = require('./lib/store/db');
+const { readWorkspaceYaml } = require('./lib/store/sessions');
 const { createLifecycleWatcher } = require('./lib/watchers/lifecycle');
 const { createDbWatcher } = require('./lib/watchers/db');
 
@@ -58,6 +61,23 @@ app.use('/api/agents', agentsRouter);
 app.use('/api/stats', statsRouter);
 app.use('/api/pins', pinsRouter);
 app.use('/api/events', createEventsRouter(runwayEvents, { snapshot: lifecycle.snapshot }));
+
+// Launch endpoints (Open in VS Code / Open in Terminal). The DB-backed
+// getSession is injected so tests can stub it without touching disk.
+app.use('/api/sessions', createLaunchRouter({
+  getSession: (id) => {
+    try {
+      const db = openSessionStoreDb();
+      const row = db.prepare('SELECT id, cwd FROM sessions WHERE id = ?').get(id);
+      db.close();
+      if (!row) return null;
+      const workspace = readWorkspaceYaml(row.id);
+      return { id: row.id, cwd: (workspace && workspace.cwd) || row.cwd };
+    } catch {
+      return null;
+    }
+  },
+}));
 
 const url = `http://127.0.0.1:${PORT}`;
 
