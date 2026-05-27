@@ -228,6 +228,8 @@ function handleSessionEnded({ sessionId }) {
 }
 
 let dbActivityCoalesce = null;
+let refreshInFlight = null;
+let refreshPending = false;
 function handleDbActivity() {
   // Coalesce bursts of activity into one round trip.
   if (dbActivityCoalesce) return;
@@ -240,10 +242,30 @@ function handleDbActivity() {
 
 async function refreshSelectedSession() {
   if (!selectedSessionId || isStreaming) return;
+  // In-flight de-dup: at most one fetch in flight and one queued.
+  if (refreshInFlight) {
+    refreshPending = true;
+    return;
+  }
+  const requestedSessionId = selectedSessionId;
+  refreshInFlight = (async () => {
+    try {
+      const detail = await apiJson(`/api/sessions/${requestedSessionId}`);
+      // Stale-result guard: discard if the user switched sessions while we were fetching.
+      if (selectedSessionId !== requestedSessionId) return;
+      renderDetail(detail);
+    } catch {}
+  })();
   try {
-    const detail = await apiJson(`/api/sessions/${selectedSessionId}`);
-    renderDetail(detail);
-  } catch {}
+    await refreshInFlight;
+  } finally {
+    refreshInFlight = null;
+    if (refreshPending) {
+      refreshPending = false;
+      // Kick off the next refresh to capture any activity that arrived mid-fetch.
+      refreshSelectedSession();
+    }
+  }
 }
 
 function startFallbackPoll() {
@@ -400,6 +422,9 @@ async function selectSession(id) {
 
 function renderDetail(detail) {
   const container = document.getElementById('detail-content');
+  // A re-render of the same session preserves the user's scroll position;
+  // a switch to a different session lands on the latest turn instead.
+  const isSameSession = container.dataset.sessionId === detail.id;
 
   let html = '';
 
@@ -527,7 +552,27 @@ function renderDetail(detail) {
     html += '</ul></div>';
   }
 
+  // Preserve scroll position across live re-renders so the user is not
+  // bounced to the top while reading earlier history. If the user was at
+  // (or very near) the bottom, follow live by scrolling to the new bottom.
+  // Only applies on a same-session re-render: a session switch lands on
+  // the latest turn so the user sees current activity, not the previous
+  // session's scroll offset applied to unrelated content.
+  const SCROLL_BOTTOM_THRESHOLD_PX = 50;
+  const prevScrollTop = container.scrollTop;
+  const wasAtBottom = isSameSession &&
+    container.scrollHeight - prevScrollTop - container.clientHeight < SCROLL_BOTTOM_THRESHOLD_PX;
+
   container.innerHTML = html;
+  container.dataset.sessionId = detail.id;
+
+  if (!isSameSession) {
+    container.scrollTop = container.scrollHeight;
+  } else if (wasAtBottom) {
+    container.scrollTop = container.scrollHeight;
+  } else {
+    container.scrollTop = prevScrollTop;
+  }
 }
 
 // Filters

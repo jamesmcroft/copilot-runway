@@ -105,6 +105,8 @@ Frames are encoded as `event: <type>\ndata: <json>\n\n` and a comment heartbeat 
 
 If the SSE connection drops, the dashboard reconnects with exponential backoff (1s, 2s, 4s, 8s, 16s, capped at 30s). After three consecutive failures, or if the browser does not support `EventSource`, the client falls back to a 30 second polling loop. The fallback is cancelled automatically the next time SSE reconnects and emits `ready`.
 
+The session detail panel updates live off the same channel. When the CLI commits a new turn or checkpoint, a coalesced `db.activity` event triggers a re-fetch of the selected session and the conversation re-renders within roughly two seconds, with no manual reload. Refreshes are de-duplicated so at most one request is in flight at a time, and a stale-result guard discards any response that arrives after you have switched to a different session. Scroll position is preserved across re-renders: if you were scrolled to the bottom, the panel follows the conversation to the new bottom; if you had scrolled up to read earlier history, your position is kept exactly where it was.
+
 ### Concurrency safety
 
 Runway only ever reads the CLI's SQLite files via `better-sqlite3` in read-only mode (WAL-safe) and subscribes to filesystem change notifications. It never locks or writes the CLI's files, so there is no interference with the CLI as the active writer. `fs.watch` events from SQLite WAL commits are debounced (250 ms) to avoid event storms.
