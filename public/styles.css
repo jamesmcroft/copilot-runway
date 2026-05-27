@@ -493,6 +493,62 @@ body {
   max-width: 200px;
 }
 
+.session-last-msg {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.session-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.session-badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 11px;
+  line-height: 1;
+  padding: 3px 6px;
+  border-radius: 10px;
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  border: 1px solid transparent;
+  white-space: nowrap;
+  text-decoration: none;
+}
+
+.session-badge.agent {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-subtle);
+}
+
+.session-badge.turns {
+  color: var(--text-secondary);
+}
+
+.session-badge.ref {
+  color: var(--accent);
+  cursor: pointer;
+}
+
+.session-badge.ref:hover {
+  background: var(--bg-hover);
+  color: var(--accent-hover);
+  text-decoration: underline;
+}
+
+.session-badge.ref-more {
+  color: var(--text-muted);
+  cursor: default;
+}
+
 /* Detail panel */
 .detail-panel {
   position: relative;
