@@ -11,6 +11,7 @@ on:
     - public/**
     - bin/**
     - lib/**
+    - test/**
     - package.json
     - package-lock.json
     - .github/workflows/ci.yml
@@ -22,6 +23,7 @@ on:
     - public/**
     - bin/**
     - lib/**
+    - test/**
     - package.json
     - package-lock.json
     - .github/workflows/ci.yml
@@ -54,6 +56,9 @@ jobs:
 
     - name: Install dependencies
       run: npm ci
+
+    - name: Run tests
+      run: npm test
 
     - name: Verify server starts
       shell: bash
