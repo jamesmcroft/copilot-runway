@@ -97,6 +97,9 @@ The event channel publishes the following types:
 | `session.inactive` | `inuse.<pid>.lock` disappears or the PID fails a liveness probe      | `{ sessionId, at }`                   |
 | `session.ended`    | Session directory removed                                            | `{ sessionId, at }`                   |
 | `db.activity`      | Debounced write activity on `session-store.db` or `-wal`             | `{ at }`                              |
+| `state.snapshot.end` | Marks the end of the initial state snapshot on a new connection    | `{ count, at }`                       |
+
+On every new connection the server sends `ready`, then one `session.active` or `session.inactive` frame per known session under `~/.copilot/session-state/` (classified by the same PID liveness check used for live emissions), then `state.snapshot.end` with the total snapshot count, and only after that the live delta stream. Snapshot frames are sent only to the new client's stream, never broadcast. Subscribers can therefore build full session state from the SSE stream alone, without a parallel REST call. Any events fired by the watcher during the snapshot read are captured in a per-connection buffer and drained immediately after `state.snapshot.end`, so no state change can be lost in the gap.
 
 Frames are encoded as `event: <type>\ndata: <json>\n\n` and a comment heartbeat (`: heartbeat\n\n`) is sent every 25 seconds to defeat idle-proxy timeouts. EventSource clients ignore comment lines.
 
