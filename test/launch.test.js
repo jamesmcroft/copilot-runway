@@ -11,7 +11,7 @@ const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'runway-launch-test-'));
 process.env.HOME = tmpHome;
 process.env.USERPROFILE = tmpHome;
 
-const { createLaunchRouter } = require('../lib/launch');
+const { createLaunchRouter, defaultReadLaunchers, LAUNCHERS_FILE } = require('../lib/launch');
 
 // Fake child returned by stub spawn. Behaviour controlled by `mode`:
 //   'ok'      - never emits 'error'; settles via setImmediate (success path).
@@ -416,5 +416,143 @@ test('400 when cwd does not exist on disk returns ok:false envelope', async () =
     assert.equal(body.ok, false);
     assert.equal(body.error, 'cwd-not-accessible');
     assert.ok(body.hint && body.hint.includes('/does/not/exist'));
+  } finally { await stop(server); }
+});
+
+// ---------------------------------------------------------------------------
+// defaultReadLaunchers: direct file reader (no HTTP).
+// Uses the LAUNCHERS_FILE under the test-scoped tmpHome.
+// ---------------------------------------------------------------------------
+
+function clearLaunchersFile() {
+  try { fs.unlinkSync(LAUNCHERS_FILE); } catch {}
+}
+
+test('defaultReadLaunchers returns {} when file is missing', () => {
+  clearLaunchersFile();
+  assert.deepEqual(defaultReadLaunchers(), {});
+});
+
+test('defaultReadLaunchers returns {} and warns when JSON is malformed', () => {
+  clearLaunchersFile();
+  fs.writeFileSync(LAUNCHERS_FILE, '{ not json');
+  let warned = false;
+  const orig = console.warn;
+  console.warn = () => { warned = true; };
+  try {
+    assert.deepEqual(defaultReadLaunchers(), {});
+    assert.equal(warned, true);
+  } finally { console.warn = orig; }
+});
+
+test('defaultReadLaunchers returns {} and warns when top-level JSON is an array', () => {
+  clearLaunchersFile();
+  fs.writeFileSync(LAUNCHERS_FILE, JSON.stringify(['code', 'cursor']));
+  let warned = false;
+  const orig = console.warn;
+  console.warn = () => { warned = true; };
+  try {
+    assert.deepEqual(defaultReadLaunchers(), {});
+    assert.equal(warned, true);
+  } finally { console.warn = orig; }
+});
+
+// ---------------------------------------------------------------------------
+// Regression tests for shell-special cwds. These would have caught the
+// Windows shell:true quoting bug and the macOS osascript shell-evaluation
+// of metachars in cwd.
+// ---------------------------------------------------------------------------
+
+test('Windows wt: cwd with spaces is double-quoted so cmd.exe does not split it', async () => {
+  const { spawn, calls } = makeSpawn(['ok']);
+  const app = makeApp({
+    spawn,
+    platform: 'win32',
+    readLaunchers: () => ({}),
+    fsAccess: async () => {},
+    getSession: sessionStub('sid1', 'C:/Program Files/My Repo'),
+    env: {},
+  });
+  const { server, baseUrl } = await start(app);
+  try {
+    const res = await fetch(`${baseUrl}/api/sessions/sid1/launch/terminal`, { method: 'POST' });
+    assert.equal((await res.json()).ok, true);
+    // wt is invoked via shell:true, so Node will join argv with spaces.
+    // The joined string must contain the quoted cwd as a single token.
+    const joined = calls[0].args.join(' ');
+    assert.ok(joined.includes('"C:/Program Files/My Repo"'), `joined: ${joined}`);
+  } finally { await stop(server); }
+});
+
+test('Windows cmd fallback: cwd with spaces and session id both end up quoted in the cmd string', async () => {
+  const { spawn, calls } = makeSpawn(['enoent', 'ok']);
+  const app = makeApp({
+    spawn,
+    platform: 'win32',
+    readLaunchers: () => ({}),
+    fsAccess: async () => {},
+    getSession: sessionStub('has space id', 'C:/Program Files/My Repo'),
+    env: {},
+  });
+  const { server, baseUrl } = await start(app);
+  try {
+    const res = await fetch(`${baseUrl}/api/sessions/has space id/launch/terminal`, { method: 'POST' });
+    assert.equal((await res.json()).ok, true);
+    const cmdString = calls[1].args[1];
+    assert.ok(cmdString.includes('cd /d "C:/Program Files/My Repo"'), `cmd: ${cmdString}`);
+    assert.ok(cmdString.includes('copilot --resume="has space id"'), `cmd: ${cmdString}`);
+  } finally { await stop(server); }
+});
+
+test('macOS osascript: cwd with quotes and $ is escaped, shell flag is NOT set', async () => {
+  const { spawn, calls } = makeSpawn(['ok']);
+  const cwd = '/tmp/has "quote" and $dollar';
+  const app = makeApp({
+    spawn,
+    platform: 'darwin',
+    readLaunchers: () => ({}),
+    fsAccess: async () => {},
+    getSession: sessionStub('mid1', cwd),
+    env: {},
+  });
+  const { server, baseUrl } = await start(app);
+  try {
+    const res = await fetch(`${baseUrl}/api/sessions/mid1/launch/terminal`, { method: 'POST' });
+    assert.equal((await res.json()).ok, true);
+    // The whole point: NO shell:true on macOS, so $dollar is never expanded.
+    assert.notEqual(calls[0].opts.shell, true);
+    const script = calls[0].args[1];
+    // Embedded " becomes \" inside the AppleScript double-quoted string,
+    // then the outer JS template adds another level of escaping for the
+    // `cd \"<cwd>\"` wrapping. We assert the literal substring as it is
+    // passed to osascript (argv element, not shell-interpreted).
+    assert.ok(script.includes('has \\"quote\\" and $dollar'), `script: ${script}`);
+  } finally { await stop(server); }
+});
+
+test('Linux x-terminal-emulator: cwd with single and double quotes survives POSIX escaping', async () => {
+  const { spawn, calls } = makeSpawn(['ok']);
+  const cwd = "/tmp/has 'single' and \"double\"";
+  const app = makeApp({
+    spawn,
+    platform: 'linux',
+    readLaunchers: () => ({}),
+    fsAccess: async () => {},
+    getSession: sessionStub('lid1', cwd),
+    env: {},
+  });
+  const { server, baseUrl } = await start(app);
+  try {
+    const res = await fetch(`${baseUrl}/api/sessions/lid1/launch/terminal`, { method: 'POST' });
+    assert.equal((await res.json()).ok, true);
+    assert.equal(calls[0].bin, 'x-terminal-emulator');
+    const shellArg = calls[0].args[1];
+    // The outer wrapper is `bash -c '<cmd>'`, so single quotes inside the
+    // inner command are escaped using the POSIX `'\''` close-reopen idiom.
+    // Inside the double-quoted cd, the path's own " must be backslashed.
+    assert.ok(shellArg.startsWith("bash -c '"), `shellArg: ${shellArg}`);
+    assert.ok(shellArg.includes("cd \"/tmp/has '\\''single'\\'' and \\\"double\\\"\""),
+              `shellArg: ${shellArg}`);
+    assert.ok(shellArg.includes('copilot --resume=lid1'));
   } finally { await stop(server); }
 });
