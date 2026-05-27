@@ -174,6 +174,15 @@ async function init() {
   loadFiltersFromStorage();
   applyFiltersToControls();
   await Promise.all([loadStats(), loadProjects(), loadSessions(), loadAgents()]);
+  // Recover from a stale persisted project filter: if the saved cwd no
+  // longer matches any known project, drop it so the user is not stuck
+  // staring at an empty list with no obvious cause.
+  if (appState.filters.project && !projects.find(p => p.main_repo_path === appState.filters.project)) {
+    appState.filters.project = null;
+    persistFilters();
+    updateMainTitle();
+    renderSessions();
+  }
   startEventStream();
 }
 
@@ -193,15 +202,20 @@ function applyFiltersToControls() {
 function updateMainTitle() {
   const title = document.getElementById('main-title');
   if (!title) return;
-  if (appState.filters.project) {
-    const project = projects.find(p => p.main_repo_path === appState.filters.project);
-    title.textContent = project ? project.name : 'Sessions';
-  } else if (appState.filters.status === 'active') {
-    title.textContent = 'Active Sessions';
-  } else if (appState.filters.status === 'inactive') {
-    title.textContent = 'Inactive Sessions';
-  } else if (appState.filters.status === 'stale') {
-    title.textContent = 'Stale Sessions';
+  const { project, status } = appState.filters;
+  const projectName = project
+    ? (projects.find(p => p.main_repo_path === project)?.name ?? 'Sessions')
+    : null;
+  const statusLabel = status === 'active' ? 'Active'
+    : status === 'inactive' ? 'Inactive'
+    : status === 'stale' ? 'Stale'
+    : null;
+  if (projectName && statusLabel) {
+    title.textContent = `${projectName} (${statusLabel})`;
+  } else if (projectName) {
+    title.textContent = projectName;
+  } else if (statusLabel) {
+    title.textContent = `${statusLabel} Sessions`;
   } else {
     title.textContent = 'All Sessions';
   }
