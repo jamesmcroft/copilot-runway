@@ -84,7 +84,24 @@ When you send a prompt, Runway spawns a `copilot` process with `-p "your prompt"
 
 ```
 copilot-runway/
-├── server.js          # Express backend — API routes, SQLite queries, CLI spawning
+├── server.js          # Express app wiring: middleware, static assets, route mounting, listen
+├── lib/
+│   ├── paths.js               # Shared filesystem path constants; ensures ~/.runway exists
+│   ├── cli/
+│   │   ├── spawn.js           # `copilot` CLI spawn helper + running-process registry
+│   │   └── agents.js          # List available custom agents (cached) via the CLI
+│   ├── store/
+│   │   ├── db.js              # Read-only openers for ~/.copilot/session-store.db and data.db
+│   │   └── sessions.js        # workspace.yaml reader, lock-file/PID status, find-new-session-id
+│   ├── runway/
+│   │   ├── projects.js        # Load/save ~/.runway/projects.json (custom folders)
+│   │   └── session-agents.js  # Load/save ~/.runway/session-agents.json (per-session agent)
+│   └── routes/
+│       ├── projects.js        # GET /api/projects, POST /api/projects/add
+│       ├── sessions.js        # GET /api/sessions, /sessions/active, /sessions/:id
+│       ├── send.js            # POST /api/sessions/send (SSE stream of CLI events)
+│       ├── agents.js          # GET /api/agents
+│       └── stats.js           # GET /api/stats
 ├── bin/
 │   └── copilot-runway.js  # CLI entry point (npx / global install)
 ├── public/
@@ -101,6 +118,16 @@ copilot-runway/
 ├── LICENSE
 └── README.md
 ```
+
+### Module boundaries
+
+The backend is split along three concerns so the upcoming WebSocket bridge has a clean place to live:
+
+- **`lib/cli/`** owns every interaction with the `copilot` binary (spawn, agent discovery, the running-process registry).
+- **`lib/store/`** owns read-only access to the Copilot CLI's own state under `~/.copilot/` (the two SQLite databases and per-session `workspace.yaml` + `inuse.<pid>.lock` files).
+- **`lib/runway/`** owns Runway's own config files under `~/.runway/` (custom projects, per-session agent selection).
+- **`lib/routes/`** contains one Express router per resource. Routers depend on the three layers above; they never reach into the filesystem or spawn processes directly.
+- **`server.js`** is wiring only: it sets up middleware (JSON body, CORS, static assets), mounts the routers under `/api/...`, and starts the listener.
 
 ## API reference
 
