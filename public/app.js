@@ -1072,7 +1072,9 @@ async function launchVSCode(sessionId) {
 }
 
 // Launch a new terminal that auto-runs `copilot --resume=<id>` at the
-// session's cwd, via the server-side spawn endpoint.
+// session's cwd, via the server-side spawn endpoint. If the session is
+// still attached to a live CLI, the server may focus the existing
+// terminal window instead of spawning a new one.
 async function launchTerminal(sessionId) {
   try {
     const res = await fetch(`/api/sessions/${sessionId}/launch/terminal`, { method: 'POST' });
@@ -1083,6 +1085,18 @@ async function launchTerminal(sessionId) {
     }
     if (body && body.ok === false) {
       alert(body.hint || body.error || 'Failed to launch terminal');
+      return;
+    }
+    if (body && body.focused === true) {
+      // Existing window was brought to the foreground; the user already
+      // sees it. Silent success would be confusing, so confirm briefly.
+      // Console-only would be invisible; an alert is jarring but matches
+      // the v1 toast model used by resumeInTerminal.
+      console.info(`[runway] focused existing terminal (pid ${body.pid}) for session ${sessionId}`);
+      return;
+    }
+    if (body && body.focused === false && body.hint) {
+      alert(body.hint);
     }
   } catch (err) {
     alert(`Failed to launch terminal: ${err.message}`);
