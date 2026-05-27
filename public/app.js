@@ -422,6 +422,9 @@ async function selectSession(id) {
 
 function renderDetail(detail) {
   const container = document.getElementById('detail-content');
+  // A re-render of the same session preserves the user's scroll position;
+  // a switch to a different session lands on the latest turn instead.
+  const isSameSession = container.dataset.sessionId === detail.id;
 
   let html = '';
 
@@ -552,14 +555,20 @@ function renderDetail(detail) {
   // Preserve scroll position across live re-renders so the user is not
   // bounced to the top while reading earlier history. If the user was at
   // (or very near) the bottom, follow live by scrolling to the new bottom.
+  // Only applies on a same-session re-render: a session switch lands on
+  // the latest turn so the user sees current activity, not the previous
+  // session's scroll offset applied to unrelated content.
   const SCROLL_BOTTOM_THRESHOLD_PX = 50;
   const prevScrollTop = container.scrollTop;
-  const wasAtBottom =
+  const wasAtBottom = isSameSession &&
     container.scrollHeight - prevScrollTop - container.clientHeight < SCROLL_BOTTOM_THRESHOLD_PX;
 
   container.innerHTML = html;
+  container.dataset.sessionId = detail.id;
 
-  if (wasAtBottom) {
+  if (!isSameSession) {
+    container.scrollTop = container.scrollHeight;
+  } else if (wasAtBottom) {
     container.scrollTop = container.scrollHeight;
   } else {
     container.scrollTop = prevScrollTop;
