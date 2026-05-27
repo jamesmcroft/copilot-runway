@@ -80,6 +80,32 @@ Custom projects and app settings are stored in `~/.runway/` to keep Runway's dat
 
 When you send a prompt, Runway spawns a `copilot` process with `-p "your prompt" --output-format json` and streams the JSONL output back to the browser via Server-Sent Events. You can optionally select a custom agent (via the CLI's `--agent` flag) — Runway remembers your choice per session.
 
+### Live updates
+
+The dashboard subscribes to `/api/events` (Server-Sent Events) for push-based updates so the UI reflects CLI activity within milliseconds instead of waiting for a periodic poll. The server watches two surfaces:
+
+- `~/.copilot/session-state/` (recursive `fs.watch`) for session directory and `inuse.<pid>.lock` changes
+- `~/.copilot/session-store.db` and its `-wal` sidecar (hybrid `fs.watch` plus periodic `fs.stat` mtime heartbeat) for write activity, with a 250 ms debounce so the burst of WAL commits from a single CLI turn produces one event
+
+The event channel publishes the following types:
+
+| Event              | Trigger                                                              | Data                                  |
+| ------------------ | -------------------------------------------------------------------- | ------------------------------------- |
+| `ready`            | Sent immediately on each successful connection                       | `{ at }`                              |
+| `session.created`  | New directory under `~/.copilot/session-state/`                      | `{ sessionId, at }`                   |
+| `session.active`   | `inuse.<pid>.lock` appears and the PID is alive                      | `{ sessionId, pid, at }`              |
+| `session.inactive` | `inuse.<pid>.lock` disappears or the PID fails a liveness probe      | `{ sessionId, at }`                   |
+| `session.ended`    | Session directory removed                                            | `{ sessionId, at }`                   |
+| `db.activity`      | Debounced write activity on `session-store.db` or `-wal`             | `{ at }`                              |
+
+Frames are encoded as `event: <type>\ndata: <json>\n\n` and a comment heartbeat (`: heartbeat\n\n`) is sent every 25 seconds to defeat idle-proxy timeouts. EventSource clients ignore comment lines.
+
+If the SSE connection drops, the dashboard reconnects with exponential backoff (1s, 2s, 4s, 8s, 16s, capped at 30s). After three consecutive failures, or if the browser does not support `EventSource`, the client falls back to a 30 second polling loop. The fallback is cancelled automatically the next time SSE reconnects and emits `ready`.
+
+### Concurrency safety
+
+Runway only ever reads the CLI's SQLite files via `better-sqlite3` in read-only mode (WAL-safe) and subscribes to filesystem change notifications. It never locks or writes the CLI's files, so there is no interference with the CLI as the active writer. `fs.watch` events from SQLite WAL commits are debounced (250 ms) to avoid event storms.
+
 ## Project structure
 
 ```
@@ -96,12 +122,16 @@ copilot-runway/
 │   ├── runway/
 │   │   ├── projects.js        # Load/save ~/.runway/projects.json (custom folders)
 │   │   └── session-agents.js  # Load/save ~/.runway/session-agents.json (per-session agent)
+│   ├── watchers/
+│   │   ├── lifecycle.js       # fs.watch on ~/.copilot/session-state/, emits session.* events
+│   │   └── db.js              # Hybrid fs.watch + mtime heartbeat on session-store.db, emits db.activity
 │   └── routes/
 │       ├── projects.js        # GET /api/projects, POST /api/projects/add
 │       ├── sessions.js        # GET /api/sessions, /sessions/active, /sessions/:id
 │       ├── send.js            # POST /api/sessions/send (SSE stream of CLI events)
 │       ├── agents.js          # GET /api/agents
-│       └── stats.js           # GET /api/stats
+│       ├── stats.js           # GET /api/stats
+│       └── events.js          # GET /api/events (SSE stream of lifecycle and DB events)
 ├── bin/
 │   └── copilot-runway.js  # CLI entry point (npx / global install)
 ├── public/
@@ -143,6 +173,7 @@ All endpoints are localhost-only with CORS origin protection.
 | `POST` | `/api/sessions/send`                              | Send a prompt (SSE stream). Body: `{ prompt, sessionId?, cwd?, name?, agent? }` |
 | `GET`  | `/api/agents`                                     | List available custom agents (cached 5 min)                                     |
 | `GET`  | `/api/stats`                                      | Dashboard stats (total sessions, active count, recent activity)                 |
+| `GET`  | `/api/events`                                     | SSE stream of session lifecycle and DB activity events                          |
 
 ## Configuration
 

@@ -122,11 +122,143 @@ async function apiJson(path) {
 // Init
 async function init() {
   await Promise.all([loadStats(), loadProjects(), loadSessions(), loadAgents()]);
-  // Auto-refresh every 5 seconds
-  setInterval(() => {
+  startEventStream();
+}
+
+// Live event stream: subscribes to /api/events for push updates and
+// falls back to polling if the SSE connection fails repeatedly or the
+// browser does not support EventSource.
+let eventSource = null;
+let reconnectAttempts = 0;
+let reconnectTimer = null;
+let fallbackPollTimer = null;
+const FALLBACK_POLL_MS = 30000;
+
+function startEventStream() {
+  if (typeof EventSource === 'undefined') {
+    startFallbackPoll();
+    return;
+  }
+
+  try {
+    eventSource = new EventSource('/api/events');
+  } catch {
+    startFallbackPoll();
+    return;
+  }
+
+  eventSource.addEventListener('ready', () => {
+    reconnectAttempts = 0;
+    if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
+    stopFallbackPoll();
+    // Re-sync after any reconnect so we don't miss events that fired while disconnected.
     loadStats();
     loadSessions();
-  }, 5000);
+  });
+
+  eventSource.addEventListener('session.created', (e) => {
+    handleSessionCreated(parsePayload(e));
+  });
+  eventSource.addEventListener('session.active', (e) => {
+    handleSessionStatusChange(parsePayload(e), 'active');
+  });
+  eventSource.addEventListener('session.inactive', (e) => {
+    handleSessionStatusChange(parsePayload(e), 'inactive');
+  });
+  eventSource.addEventListener('session.ended', (e) => {
+    handleSessionEnded(parsePayload(e));
+  });
+  eventSource.addEventListener('db.activity', () => {
+    handleDbActivity();
+  });
+
+  eventSource.onerror = () => {
+    if (eventSource) {
+      try { eventSource.close(); } catch {}
+      eventSource = null;
+    }
+    reconnectAttempts++;
+    if (reconnectAttempts >= 3) {
+      startFallbackPoll();
+    }
+    const backoffMs = Math.min(30000, 1000 * Math.pow(2, reconnectAttempts - 1));
+    reconnectTimer = setTimeout(() => {
+      reconnectTimer = null;
+      startEventStream();
+    }, backoffMs);
+  };
+}
+
+function parsePayload(e) {
+  try { return JSON.parse(e.data); } catch { return {}; }
+}
+
+function handleSessionCreated() {
+  // A new session id only becomes useful once workspace.yaml is written.
+  // Re-fetch the session list to pick it up with full metadata.
+  loadSessions();
+  loadStats();
+}
+
+function handleSessionStatusChange({ sessionId, pid }, status) {
+  if (!sessionId) return;
+  const idx = sessions.findIndex(s => s.id === sessionId);
+  if (idx >= 0) {
+    sessions[idx] = { ...sessions[idx], status, pid: status === 'active' ? (pid || null) : null };
+    if (selectedFilter === 'active' && status !== 'active') {
+      sessions.splice(idx, 1);
+    }
+    renderSessions();
+  } else if (status === 'active') {
+    // Session became active that we hadn't seen yet (e.g. just created).
+    loadSessions();
+  }
+  loadStats();
+  if (selectedSessionId === sessionId) {
+    refreshSelectedSession();
+  }
+}
+
+function handleSessionEnded({ sessionId }) {
+  if (!sessionId) return;
+  const before = sessions.length;
+  sessions = sessions.filter(s => s.id !== sessionId);
+  if (sessions.length !== before) renderSessions();
+  loadStats();
+}
+
+let dbActivityCoalesce = null;
+function handleDbActivity() {
+  // Coalesce bursts of activity into one round trip.
+  if (dbActivityCoalesce) return;
+  dbActivityCoalesce = setTimeout(() => {
+    dbActivityCoalesce = null;
+    loadStats();
+    if (selectedSessionId) refreshSelectedSession();
+  }, 500);
+}
+
+async function refreshSelectedSession() {
+  if (!selectedSessionId || isStreaming) return;
+  try {
+    const detail = await apiJson(`/api/sessions/${selectedSessionId}`);
+    renderDetail(detail);
+  } catch {}
+}
+
+function startFallbackPoll() {
+  if (fallbackPollTimer) return;
+  fallbackPollTimer = setInterval(() => {
+    loadStats();
+    loadSessions();
+  }, FALLBACK_POLL_MS);
+}
+
+function stopFallbackPoll() {
+  if (fallbackPollTimer) {
+    clearInterval(fallbackPollTimer);
+    fallbackPollTimer = null;
+  }
 }
 
 // Stats
