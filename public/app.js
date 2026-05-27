@@ -461,8 +461,20 @@ function applyFiltersAndSort(rawSessions) {
       if (!haystack.includes(searchLower)) return false;
     }
     if (project) {
-      // NOTE: prefix match is intentionally naive here; see #32.
-      if (!s.cwd || !s.cwd.startsWith(project)) return false;
+      // Match either via shared canonical repo (worktrees) when the
+      // server resolved a project_key for both sides, or via the
+      // segment-boundary path helper. This avoids the legacy bug where
+      // raw startsWith() let "foo" capture sessions under "foo-bar"
+      // (issue #32).
+      const projectMeta = projects.find(p => p.main_repo_path === project);
+      const projectKey = projectMeta && projectMeta.project_key;
+      let matched = false;
+      if (projectKey && s.project_key && projectKey === s.project_key) {
+        matched = true;
+      } else if (PathMatch.isPathWithinProject(s.cwd, project)) {
+        matched = true;
+      }
+      if (!matched) return false;
     }
     if (status && status !== 'all') {
       if (s.status !== status) return false;
