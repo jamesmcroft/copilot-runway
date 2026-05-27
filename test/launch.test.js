@@ -556,3 +556,207 @@ test('Linux x-terminal-emulator: cwd with single and double quotes survives POSI
     assert.ok(shellArg.includes('copilot --resume=lid1'));
   } finally { await stop(server); }
 });
+
+// ---------------------------------------------------------------------------
+// Focus-existing-terminal behaviour. Default getSessionPid returns null, so
+// the existing tests above remain unchanged. These tests stub getSessionPid
+// and isPidAlive to exercise the focus branch.
+// ---------------------------------------------------------------------------
+
+const { focusExisting } = require('../lib/launch');
+
+test('terminal: pid alive + focus succeeds skips spawn and reports focused:true', async () => {
+  const { spawn, calls } = makeSpawn(['ok']);
+  let focusCalledWith = null;
+  const app = makeApp({
+    spawn,
+    platform: 'linux',
+    readLaunchers: () => ({}),
+    fsAccess: async () => {},
+    getSession: sessionStub('s1', '/work/repo'),
+    getSessionPid: () => 4242,
+    isPidAlive: () => true,
+    focusWindow: async (pid, plat) => { focusCalledWith = { pid, plat }; return { focused: true }; },
+    env: {},
+  });
+  const { server, baseUrl } = await start(app);
+  try {
+    const res = await fetch(`${baseUrl}/api/sessions/s1/launch/terminal`, { method: 'POST' });
+    const body = await res.json();
+    assert.equal(body.ok, true);
+    assert.equal(body.focused, true);
+    assert.equal(body.pid, 4242);
+    assert.equal(calls.length, 0, 'no spawn when focus succeeds');
+    assert.deepEqual(focusCalledWith, { pid: 4242, plat: 'linux' });
+  } finally { await stop(server); }
+});
+
+test('terminal: pid alive + focus fails falls through to spawn with focused:false + hint', async () => {
+  const { spawn, calls } = makeSpawn(['ok']);
+  const app = makeApp({
+    spawn,
+    platform: 'linux',
+    readLaunchers: () => ({}),
+    fsAccess: async () => {},
+    getSession: sessionStub('s1', '/work/repo'),
+    getSessionPid: () => 4242,
+    isPidAlive: () => true,
+    focusWindow: async () => ({ focused: false, reason: 'no-wm-tool' }),
+    env: {},
+  });
+  const { server, baseUrl } = await start(app);
+  try {
+    const res = await fetch(`${baseUrl}/api/sessions/s1/launch/terminal`, { method: 'POST' });
+    const body = await res.json();
+    assert.equal(body.ok, true);
+    assert.equal(body.focused, false);
+    assert.ok(body.hint && body.hint.includes('not supported'));
+    assert.equal(calls.length, 1, 'spawn happens when focus fails');
+  } finally { await stop(server); }
+});
+
+test('terminal: pid recorded but dead spawns as normal, no focus attempt', async () => {
+  const { spawn, calls } = makeSpawn(['ok']);
+  let focusCalled = false;
+  const app = makeApp({
+    spawn,
+    platform: 'linux',
+    readLaunchers: () => ({}),
+    fsAccess: async () => {},
+    getSession: sessionStub('s1', '/work/repo'),
+    getSessionPid: () => 9999,
+    isPidAlive: () => false,
+    focusWindow: async () => { focusCalled = true; return { focused: true }; },
+    env: {},
+  });
+  const { server, baseUrl } = await start(app);
+  try {
+    const res = await fetch(`${baseUrl}/api/sessions/s1/launch/terminal`, { method: 'POST' });
+    const body = await res.json();
+    assert.equal(body.ok, true);
+    assert.equal(body.focused, undefined, 'focused absent on plain spawn path');
+    assert.equal(calls.length, 1);
+    assert.equal(focusCalled, false, 'focus must not be attempted for a dead pid');
+  } finally { await stop(server); }
+});
+
+test('terminal: no pid recorded behaves exactly like the pre-focus path', async () => {
+  const { spawn, calls } = makeSpawn(['ok']);
+  let focusCalled = false;
+  const app = makeApp({
+    spawn,
+    platform: 'linux',
+    readLaunchers: () => ({}),
+    fsAccess: async () => {},
+    getSession: sessionStub('s1', '/work/repo'),
+    getSessionPid: () => null,
+    isPidAlive: () => true, // would be true if asked, but it should not be asked
+    focusWindow: async () => { focusCalled = true; return { focused: true }; },
+    env: {},
+  });
+  const { server, baseUrl } = await start(app);
+  try {
+    const res = await fetch(`${baseUrl}/api/sessions/s1/launch/terminal`, { method: 'POST' });
+    const body = await res.json();
+    assert.equal(body.ok, true);
+    assert.equal(body.focused, undefined);
+    assert.equal(calls.length, 1);
+    assert.equal(focusCalled, false);
+  } finally { await stop(server); }
+});
+
+// ---------------------------------------------------------------------------
+// Per-OS focusExisting branches via a stubbed runFocusCommand. No real
+// processes are spawned. Each test asserts the bin/args we would actually
+// run and the boolean returned from the helper.
+// ---------------------------------------------------------------------------
+
+function makeFocusRunner(scripted) {
+  const calls = [];
+  let i = 0;
+  async function run(bin, args) {
+    calls.push({ bin, args });
+    const r = scripted[Math.min(i, scripted.length - 1)];
+    i++;
+    return r;
+  }
+  return { run, calls };
+}
+
+test('focusExisting Windows: invokes powershell with the focus script and TargetPid', async () => {
+  const { run, calls } = makeFocusRunner([{ code: 0, stdout: 'OK\r\n', stderr: '' }]);
+  const r = await focusExisting(1234, 'win32', run);
+  assert.deepEqual(r, { focused: true });
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].bin, 'powershell');
+  assert.ok(calls[0].args.includes('-TargetPid'));
+  assert.ok(calls[0].args.includes('1234'));
+});
+
+test('focusExisting Windows: powershell exits non-zero -> focused:false', async () => {
+  const { run } = makeFocusRunner([{ code: 1, stdout: '', stderr: '' }]);
+  const r = await focusExisting(1234, 'win32', run);
+  assert.equal(r.focused, false);
+});
+
+test('focusExisting macOS: invokes osascript with System Events frontmost script', async () => {
+  const { run, calls } = makeFocusRunner([{ code: 0, stdout: '', stderr: '' }]);
+  const r = await focusExisting(777, 'darwin', run);
+  assert.deepEqual(r, { focused: true });
+  assert.equal(calls[0].bin, 'osascript');
+  assert.equal(calls[0].args[0], '-e');
+  assert.ok(calls[0].args[1].includes('unix id is 777'));
+  assert.ok(calls[0].args[1].includes('frontmost'));
+});
+
+test('focusExisting macOS: osascript permission denied -> focused:false', async () => {
+  const { run } = makeFocusRunner([{ code: 1, stdout: '', stderr: 'not allowed' }]);
+  const r = await focusExisting(777, 'darwin', run);
+  assert.equal(r.focused, false);
+});
+
+test('focusExisting Linux: wmctrl succeeds on first try', async () => {
+  const { run, calls } = makeFocusRunner([{ code: 0, stdout: '', stderr: '' }]);
+  const r = await focusExisting(555, 'linux', run);
+  assert.equal(r.focused, true);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].bin, 'sh');
+  assert.ok(calls[0].args[1].includes('wmctrl'));
+  assert.ok(calls[0].args[1].includes('555'));
+});
+
+test('focusExisting Linux: wmctrl fails, xdotool succeeds', async () => {
+  const { run, calls } = makeFocusRunner([
+    { code: 1, stdout: '', stderr: '' },
+    { code: 0, stdout: '', stderr: '' },
+  ]);
+  const r = await focusExisting(555, 'linux', run);
+  assert.equal(r.focused, true);
+  assert.equal(calls.length, 2);
+  assert.equal(calls[1].bin, 'xdotool');
+  assert.deepEqual(calls[1].args, ['search', '--pid', '555', 'windowactivate']);
+});
+
+test('focusExisting Linux: both wmctrl and xdotool missing -> focused:false with reason', async () => {
+  const { run } = makeFocusRunner([
+    { code: 1, stdout: '', stderr: '' },
+    { code: -1, stdout: '', stderr: 'ENOENT' },
+  ]);
+  const r = await focusExisting(555, 'linux', run);
+  assert.equal(r.focused, false);
+  assert.equal(r.reason, 'no-wm-tool');
+});
+
+test('focusExisting unknown platform -> focused:false with reason', async () => {
+  const { run } = makeFocusRunner([{ code: 0, stdout: '', stderr: '' }]);
+  const r = await focusExisting(1, 'freebsd', run);
+  assert.equal(r.focused, false);
+  assert.equal(r.reason, 'unsupported-platform');
+});
+
+test('focusExisting bails out when pid is null without invoking runner', async () => {
+  let called = false;
+  const r = await focusExisting(null, 'linux', async () => { called = true; return { code: 0 }; });
+  assert.equal(r.focused, false);
+  assert.equal(called, false);
+});

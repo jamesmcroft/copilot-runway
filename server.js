@@ -15,7 +15,7 @@ const pinsRouter = require('./lib/routes/pins');
 const createEventsRouter = require('./lib/routes/events');
 const { createLaunchRouter } = require('./lib/launch');
 const { openSessionStoreDb } = require('./lib/store/db');
-const { readWorkspaceYaml } = require('./lib/store/sessions');
+const { readWorkspaceYaml, getSessionStatus } = require('./lib/store/sessions');
 const { createLifecycleWatcher } = require('./lib/watchers/lifecycle');
 const { createDbWatcher } = require('./lib/watchers/db');
 
@@ -76,6 +76,13 @@ app.use('/api/sessions', createLaunchRouter({
     } catch {
       return null;
     }
+  },
+  // Source of truth for the active CLI pid: the inuse.<pid>.lock file
+  // under ~/.copilot/session-state/<id>/. getSessionStatus already does
+  // the alive probe; we surface the pid only when the session is active.
+  getSessionPid: (id) => {
+    const { pid } = getSessionStatus(id);
+    return pid || null;
   },
 }));
 
