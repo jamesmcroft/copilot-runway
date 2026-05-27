@@ -442,6 +442,40 @@ body {
   flex-shrink: 0;
 }
 
+.pin-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  padding: 2px 4px;
+  border-radius: 4px;
+  opacity: 0.35;
+  filter: grayscale(1);
+  color: var(--text-secondary);
+  transition: opacity 0.15s, filter 0.15s, background 0.15s;
+  flex-shrink: 0;
+}
+
+.pin-btn:hover {
+  opacity: 1;
+  background: var(--bg-hover);
+}
+
+.pin-btn.pinned {
+  opacity: 1;
+  filter: none;
+}
+
+.session-group-header {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  padding: 8px 12px 4px;
+}
+
 .session-meta {
   display: flex;
   gap: 12px;
