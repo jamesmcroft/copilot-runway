@@ -779,7 +779,9 @@ function renderDetail(detail) {
     <div class="detail-section">
       <div class="detail-section-title">Actions</div>
       <div class="session-actions">
-        <button class="action-btn primary" onclick="resumeInTerminal('${detail.id}')">Open in Terminal</button>
+        <button class="action-btn primary" onclick="launchVSCode('${detail.id}')">Open in VS Code</button>
+        <button class="action-btn primary" onclick="launchTerminal('${detail.id}')">Open in Terminal</button>
+        <button class="action-btn" onclick="resumeInTerminal('${detail.id}')">Copy command</button>
       </div>
     </div>
   `;
@@ -1050,6 +1052,55 @@ function resumeInTerminal(sessionId) {
   }).catch(() => {
     prompt('Run this in your terminal:', cmd);
   });
+}
+
+// Launch VS Code at the session's cwd via the server-side spawn endpoint.
+async function launchVSCode(sessionId) {
+  try {
+    const res = await fetch(`/api/sessions/${sessionId}/launch/vscode`, { method: 'POST' });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      alert(body.hint || body.error || `Failed to launch VS Code (HTTP ${res.status})`);
+      return;
+    }
+    if (body && body.ok === false) {
+      alert(body.hint || body.error || 'Failed to launch VS Code');
+    }
+  } catch (err) {
+    alert(`Failed to launch VS Code: ${err.message}`);
+  }
+}
+
+// Launch a new terminal that auto-runs `copilot --resume=<id>` at the
+// session's cwd, via the server-side spawn endpoint. If the session is
+// still attached to a live CLI, the server may focus the existing
+// terminal window instead of spawning a new one.
+async function launchTerminal(sessionId) {
+  try {
+    const res = await fetch(`/api/sessions/${sessionId}/launch/terminal`, { method: 'POST' });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      alert(body.hint || body.error || `Failed to launch terminal (HTTP ${res.status})`);
+      return;
+    }
+    if (body && body.ok === false) {
+      alert(body.hint || body.error || 'Failed to launch terminal');
+      return;
+    }
+    if (body && body.focused === true) {
+      // Existing window was brought to the foreground; the user already
+      // sees it. Silent success would be confusing, so confirm briefly.
+      // Console-only would be invisible; an alert is jarring but matches
+      // the v1 toast model used by resumeInTerminal.
+      console.info(`[runway] focused existing terminal (pid ${body.pid}) for session ${sessionId}`);
+      return;
+    }
+    if (body && body.focused === false && body.hint) {
+      alert(body.hint);
+    }
+  } catch (err) {
+    alert(`Failed to launch terminal: ${err.message}`);
+  }
 }
 
 // Chat input handling
