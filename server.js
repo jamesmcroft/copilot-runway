@@ -25,7 +25,11 @@ app.use('/api/', (req, res, next) => {
 });
 
 app.use(express.static(path.join(__dirname, 'public')));
-app.use('/vendor', express.static(path.join(__dirname, 'node_modules', 'marked', 'lib')));
+
+// Resolve marked via require.resolve so it works regardless of npm hoisting
+// (when installed via npx, dependencies hoist to a sibling node_modules folder).
+const markedLibDir = path.join(path.dirname(require.resolve('marked/package.json')), 'lib');
+app.use('/vendor', express.static(markedLibDir));
 const HOME_DIR = process.env.HOME || process.env.USERPROFILE;
 const COPILOT_DIR = path.join(HOME_DIR, '.copilot');
 const RUNWAY_DIR = path.join(HOME_DIR, '.runway');
