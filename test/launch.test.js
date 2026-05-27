@@ -219,7 +219,9 @@ test('terminal Windows: spawns wt -d <cwd> copilot --resume <id>', async () => {
     assert.equal(body.ok, true);
     assert.equal(calls.length, 1);
     assert.equal(calls[0].bin, 'wt');
-    assert.deepEqual(calls[0].args, ['-d', 'C:/work/repo', 'copilot', '--resume', 'abc123']);
+    // With shell:true Node joins argv with spaces; cwd and id must be
+    // pre-quoted to survive paths-with-spaces or shell metachars.
+    assert.deepEqual(calls[0].args, ['-d', '"C:/work/repo"', 'copilot', '--resume', '"abc123"']);
     assert.equal(calls[0].opts.shell, true);
     assert.equal(calls[0].opts.detached, true);
   } finally { await stop(server); }
@@ -243,8 +245,8 @@ test('terminal Windows: wt-missing falls back to cmd /k with cd /d and copilot -
     assert.equal(calls.length, 2);
     assert.equal(calls[1].bin, 'cmd');
     assert.equal(calls[1].args[0], '/k');
-    assert.ok(calls[1].args[1].includes('cd /d'));
-    assert.ok(calls[1].args[1].includes('copilot --resume=abc123'));
+    assert.ok(calls[1].args[1].includes('cd /d "C:/work/repo"'));
+    assert.ok(calls[1].args[1].includes('copilot --resume="abc123"'));
   } finally { await stop(server); }
 });
 
@@ -265,6 +267,10 @@ test('terminal macOS: osascript script contains cd <cwd> and copilot --resume=<i
     assert.equal(body.ok, true);
     assert.equal(calls[0].bin, 'osascript');
     assert.equal(calls[0].args[0], '-e');
+    // shell:true is unnecessary here (osascript at /usr/bin); using it
+    // would expose shell metachars in cwd. Assert the route does NOT
+    // enable a shell on the macOS path.
+    assert.notEqual(calls[0].opts.shell, true);
     const script = calls[0].args[1];
     assert.ok(script.includes('cd \\"/Users/me/repo\\"'), `script was: ${script}`);
     assert.ok(script.includes('copilot --resume=xyz'));
