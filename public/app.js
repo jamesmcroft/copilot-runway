@@ -118,6 +118,15 @@ const appState = {
 
 let projects = [];
 let isStreaming = false;
+// Server-driven set of pinned session ids. Populated on boot from
+// /api/pins and kept in sync as the user toggles pins. Using a Set so
+// pin/unpin and membership checks stay O(1) during re-renders triggered
+// by SSE events.
+let pinnedSessionIds = new Set();
+// Session ids with a pin/unpin request currently in flight. Used to
+// reject rapid repeat clicks so two simultaneous requests can not race
+// and leave the UI out of sync with the server.
+const pinTogglesInFlight = new Set();
 
 // Persistence
 const STORAGE_PREFIX = 'runway:';
@@ -173,7 +182,7 @@ async function apiJson(path) {
 async function init() {
   loadFiltersFromStorage();
   applyFiltersToControls();
-  await Promise.all([loadStats(), loadProjects(), loadSessions(), loadAgents()]);
+  await Promise.all([loadStats(), loadProjects(), loadSessions(), loadAgents(), loadPins()]);
   // Recover from a stale persisted project filter: if the saved cwd no
   // longer matches any known project, drop it so the user is not stuck
   // staring at an empty list with no obvious cause.
@@ -448,6 +457,52 @@ async function loadSessions() {
   } catch {}
 }
 
+// Pins
+async function loadPins() {
+  try {
+    const pins = await apiJson('/api/pins');
+    pinnedSessionIds = new Set(Array.isArray(pins?.sessions) ? pins.sessions : []);
+  } catch {
+    pinnedSessionIds = new Set();
+  }
+}
+
+async function togglePin(sessionId, event) {
+  // Stop the click bubbling so the session card under the button is
+  // not also selected when the user just wants to pin or unpin.
+  if (event) {
+    event.stopPropagation();
+    event.preventDefault();
+  }
+  // In-flight guard: ignore the click entirely if a request for this
+  // session is already pending. Two simultaneous requests could race and
+  // leave the UI showing the opposite of the server's last write.
+  if (pinTogglesInFlight.has(sessionId)) return;
+
+  const wasPinned = pinnedSessionIds.has(sessionId);
+  // Optimistic UI: flip locally so the user gets immediate feedback,
+  // then reconcile from the server's response (or revert on failure).
+  if (wasPinned) pinnedSessionIds.delete(sessionId);
+  else pinnedSessionIds.add(sessionId);
+  pinTogglesInFlight.add(sessionId);
+  renderSessions();
+  try {
+    const res = await api(`/api/pins/sessions/${encodeURIComponent(sessionId)}`, {
+      method: wasPinned ? 'DELETE' : 'POST',
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const pins = await res.json();
+    pinnedSessionIds = new Set(Array.isArray(pins?.sessions) ? pins.sessions : []);
+  } catch {
+    // Revert on failure so client state matches the server.
+    if (wasPinned) pinnedSessionIds.add(sessionId);
+    else pinnedSessionIds.delete(sessionId);
+  } finally {
+    pinTogglesInFlight.delete(sessionId);
+    renderSessions();
+  }
+}
+
 function applyFiltersAndSort(rawSessions) {
   const { search, project, status, hasRef } = appState.filters;
   const searchLower = (search || '').trim().toLowerCase();
@@ -461,8 +516,20 @@ function applyFiltersAndSort(rawSessions) {
       if (!haystack.includes(searchLower)) return false;
     }
     if (project) {
-      // NOTE: prefix match is intentionally naive here; see #32.
-      if (!s.cwd || !s.cwd.startsWith(project)) return false;
+      // Match either via shared canonical repo (worktrees) when the
+      // server resolved a project_key for both sides, or via the
+      // segment-boundary path helper. This avoids the legacy bug where
+      // raw startsWith() let "foo" capture sessions under "foo-bar"
+      // (issue #32).
+      const projectMeta = projects.find(p => p.main_repo_path === project);
+      const projectKey = projectMeta && projectMeta.project_key;
+      let matched = false;
+      if (projectKey && s.project_key && projectKey === s.project_key) {
+        matched = true;
+      } else if (PathMatch.isPathWithinProject(s.cwd, project)) {
+        matched = true;
+      }
+      if (!matched) return false;
     }
     if (status && status !== 'all') {
       if (s.status !== status) return false;
@@ -505,6 +572,32 @@ function describeActiveFilters() {
   return parts.join(' + ');
 }
 
+function renderSessionCard(s) {
+  const pinned = pinnedSessionIds.has(s.id);
+  const inFlight = pinTogglesInFlight.has(s.id);
+  const pinTitle = pinned ? 'Unpin session' : 'Pin session';
+  const pinClass = pinned ? 'pin-btn pinned' : 'pin-btn';
+  const busyAttrs = inFlight ? ' disabled aria-busy="true"' : '';
+  return `
+    <div class="session-card ${appState.selectedSessionId === s.id ? 'selected' : ''}"
+         onclick="selectSession('${s.id}')">
+      <div class="session-card-header">
+        <div class="session-status-dot ${s.status}"></div>
+        <div class="session-title">${esc(s.name || s.summary || s.id.substring(0, 8))}</div>
+        <button class="${pinClass}" title="${pinTitle}" aria-label="${pinTitle}"
+                aria-pressed="${pinned ? 'true' : 'false'}"${busyAttrs}
+                onclick="togglePin('${s.id}', event)">&#x1F4CC;</button>
+        <div class="session-time">${timeAgo(s.updated_at)}</div>
+      </div>
+      <div class="session-meta">
+        ${s.cwd ? `<span class="session-meta-item" title="${esc(s.cwd)}">&#x1F4C1; ${esc(shortenPath(s.cwd))}</span>` : ''}
+        ${s.branch ? `<span class="session-meta-item">&#x1F33F; ${esc(s.branch)}</span>` : ''}
+        ${s.repository ? `<span class="session-meta-item">&#x1F4E6; ${esc(s.repository)}</span>` : ''}
+      </div>
+    </div>
+  `;
+}
+
 function renderSessions() {
   const container = document.getElementById('session-list');
   const visible = applyFiltersAndSort(appState.sessions);
@@ -517,21 +610,27 @@ function renderSessions() {
     return;
   }
 
-  container.innerHTML = visible.map(s => `
-    <div class="session-card ${appState.selectedSessionId === s.id ? 'selected' : ''}" 
-         onclick="selectSession('${s.id}')">
-      <div class="session-card-header">
-        <div class="session-status-dot ${s.status}"></div>
-        <div class="session-title">${esc(s.name || s.summary || s.id.substring(0, 8))}</div>
-        <div class="session-time">${timeAgo(s.updated_at)}</div>
-      </div>
-      <div class="session-meta">
-        ${s.cwd ? `<span class="session-meta-item" title="${esc(s.cwd)}">&#x1F4C1; ${esc(shortenPath(s.cwd))}</span>` : ''}
-        ${s.branch ? `<span class="session-meta-item">&#x1F33F; ${esc(s.branch)}</span>` : ''}
-        ${s.repository ? `<span class="session-meta-item">&#x1F4E6; ${esc(s.repository)}</span>` : ''}
-      </div>
-    </div>
-  `).join('');
+  // Split into pinned and unpinned groups while preserving the order
+  // produced by applyFiltersAndSort within each group. Pinned sessions
+  // render first under a small header so they stay visible regardless of
+  // sort or recent activity.
+  const pinned = [];
+  const rest = [];
+  for (const s of visible) {
+    if (pinnedSessionIds.has(s.id)) pinned.push(s);
+    else rest.push(s);
+  }
+
+  let html = '';
+  if (pinned.length > 0) {
+    html += `<div class="session-group-header">Pinned</div>`;
+    html += pinned.map(renderSessionCard).join('');
+    if (rest.length > 0) {
+      html += `<div class="session-group-header">Other</div>`;
+    }
+  }
+  html += rest.map(renderSessionCard).join('');
+  container.innerHTML = html;
 }
 
 // Session detail

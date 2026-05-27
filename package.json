@@ -16,7 +16,9 @@
   ],
   "scripts": {
     "start": "node server.js",
-    "dev": "node --watch server.js"
+    "dev": "node --watch server.js",
+    "test": "node --test",
+    "test:coverage": "c8 --reporter=lcov --reporter=text node --test"
   },
   "keywords": [
     "github",
@@ -40,5 +42,8 @@
     "express": "^5.2.1",
     "js-yaml": "^4.1.0",
     "marked": "^18.0.4"
+  },
+  "devDependencies": {
+    "c8": "^10.1.3"
   }
 }

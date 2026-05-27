@@ -11,6 +11,7 @@ const sessionsRouter = require('./lib/routes/sessions');
 const sendRouter = require('./lib/routes/send');
 const agentsRouter = require('./lib/routes/agents');
 const statsRouter = require('./lib/routes/stats');
+const pinsRouter = require('./lib/routes/pins');
 const createEventsRouter = require('./lib/routes/events');
 const { createLifecycleWatcher } = require('./lib/watchers/lifecycle');
 const { createDbWatcher } = require('./lib/watchers/db');
@@ -55,6 +56,7 @@ app.use('/api/sessions', sendRouter);
 app.use('/api/sessions', sessionsRouter);
 app.use('/api/agents', agentsRouter);
 app.use('/api/stats', statsRouter);
+app.use('/api/pins', pinsRouter);
 app.use('/api/events', createEventsRouter(runwayEvents, { snapshot: lifecycle.snapshot }));
 
 const url = `http://127.0.0.1:${PORT}`;
