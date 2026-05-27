@@ -10,6 +10,7 @@ on:
     - server.js
     - public/**
     - bin/**
+    - lib/**
     - package.json
     - package-lock.json
     - .github/workflows/ci.yml
@@ -20,6 +21,7 @@ on:
     - server.js
     - public/**
     - bin/**
+    - lib/**
     - package.json
     - package-lock.json
     - .github/workflows/ci.yml
