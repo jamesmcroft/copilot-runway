@@ -19,7 +19,8 @@ const { createDbWatcher } = require('./lib/watchers/db');
 // router fans events out to connected dashboard clients.
 const runwayEvents = new EventEmitter();
 runwayEvents.setMaxListeners(0);
-createLifecycleWatcher(runwayEvents).start();
+const lifecycle = createLifecycleWatcher(runwayEvents);
+lifecycle.start();
 createDbWatcher(runwayEvents).start();
 
 const app = express();
@@ -54,7 +55,7 @@ app.use('/api/sessions', sendRouter);
 app.use('/api/sessions', sessionsRouter);
 app.use('/api/agents', agentsRouter);
 app.use('/api/stats', statsRouter);
-app.use('/api/events', createEventsRouter(runwayEvents));
+app.use('/api/events', createEventsRouter(runwayEvents, { snapshot: lifecycle.snapshot }));
 
 const url = `http://127.0.0.1:${PORT}`;
 
