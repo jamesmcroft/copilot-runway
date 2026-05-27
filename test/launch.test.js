@@ -341,7 +341,7 @@ test('terminal Linux: no terminal found returns structured error', async () => {
   } finally { await stop(server); }
 });
 
-test('404 when session id is unknown (vscode)', async () => {
+test('404 when session id is unknown (vscode) returns ok:false envelope', async () => {
   const { spawn } = makeSpawn(['ok']);
   const app = makeApp({
     spawn,
@@ -353,11 +353,15 @@ test('404 when session id is unknown (vscode)', async () => {
   const { server, baseUrl } = await start(app);
   try {
     const res = await fetch(`${baseUrl}/api/sessions/nope/launch/vscode`, { method: 'POST' });
+    const body = await res.json();
     assert.equal(res.status, 404);
+    assert.equal(body.ok, false);
+    assert.equal(body.error, 'session-not-found');
+    assert.ok(body.hint);
   } finally { await stop(server); }
 });
 
-test('404 when session id is unknown (terminal)', async () => {
+test('404 when session id is unknown (terminal) returns ok:false envelope', async () => {
   const { spawn } = makeSpawn(['ok']);
   const app = makeApp({
     spawn,
@@ -369,11 +373,14 @@ test('404 when session id is unknown (terminal)', async () => {
   const { server, baseUrl } = await start(app);
   try {
     const res = await fetch(`${baseUrl}/api/sessions/nope/launch/terminal`, { method: 'POST' });
+    const body = await res.json();
     assert.equal(res.status, 404);
+    assert.equal(body.ok, false);
+    assert.equal(body.error, 'session-not-found');
   } finally { await stop(server); }
 });
 
-test('400 when session has no cwd', async () => {
+test('400 when session has no cwd returns ok:false envelope', async () => {
   const { spawn } = makeSpawn(['ok']);
   const app = makeApp({
     spawn,
@@ -385,11 +392,14 @@ test('400 when session has no cwd', async () => {
   const { server, baseUrl } = await start(app);
   try {
     const res = await fetch(`${baseUrl}/api/sessions/sess-1/launch/vscode`, { method: 'POST' });
+    const body = await res.json();
     assert.equal(res.status, 400);
+    assert.equal(body.ok, false);
+    assert.equal(body.error, 'session-missing-cwd');
   } finally { await stop(server); }
 });
 
-test('400 when cwd does not exist on disk', async () => {
+test('400 when cwd does not exist on disk returns ok:false envelope', async () => {
   const { spawn } = makeSpawn(['ok']);
   const app = makeApp({
     spawn,
@@ -401,6 +411,10 @@ test('400 when cwd does not exist on disk', async () => {
   const { server, baseUrl } = await start(app);
   try {
     const res = await fetch(`${baseUrl}/api/sessions/sess-1/launch/terminal`, { method: 'POST' });
+    const body = await res.json();
     assert.equal(res.status, 400);
+    assert.equal(body.ok, false);
+    assert.equal(body.error, 'cwd-not-accessible');
+    assert.ok(body.hint && body.hint.includes('/does/not/exist'));
   } finally { await stop(server); }
 });

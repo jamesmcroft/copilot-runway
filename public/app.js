@@ -1060,7 +1060,7 @@ async function launchVSCode(sessionId) {
     const res = await fetch(`/api/sessions/${sessionId}/launch/vscode`, { method: 'POST' });
     const body = await res.json().catch(() => ({}));
     if (!res.ok) {
-      alert(body.error || `Failed to launch VS Code (HTTP ${res.status})`);
+      alert(body.hint || body.error || `Failed to launch VS Code (HTTP ${res.status})`);
       return;
     }
     if (body && body.ok === false) {
@@ -1078,7 +1078,7 @@ async function launchTerminal(sessionId) {
     const res = await fetch(`/api/sessions/${sessionId}/launch/terminal`, { method: 'POST' });
     const body = await res.json().catch(() => ({}));
     if (!res.ok) {
-      alert(body.error || `Failed to launch terminal (HTTP ${res.status})`);
+      alert(body.hint || body.error || `Failed to launch terminal (HTTP ${res.status})`);
       return;
     }
     if (body && body.ok === false) {
