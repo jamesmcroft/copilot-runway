@@ -1022,8 +1022,16 @@ function renderDetail(detail) {
   `;
 
   // Actions
+  // The project key is dropped into an inline onclick handler, which the
+  // browser parses as a JS string literal. `esc()` only handles HTML
+  // entities, so a Windows path like `C:\src\foo` would have its
+  // backslashes interpreted as JS escape sequences (\s -> s, \f -> form
+  // feed, \b -> backspace) before reaching `openProjectSettings`, leaving
+  // the project key mangled before encodeURIComponent ever runs. Use
+  // `escapeAttr` to escape backslashes and quotes for the JS-string layer
+  // (same pattern as launchVSCodeAtPath below).
   const projectSettingsBtn = detail.cwd
-    ? `<button class="action-btn" onclick="openProjectSettings('${esc(detail.cwd)}')">Project settings</button>`
+    ? `<button class="action-btn" onclick="openProjectSettings('${escapeAttr(detail.cwd)}')">Project settings</button>`
     : '';
   html += `
     <div class="detail-section">

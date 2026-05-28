@@ -234,6 +234,51 @@ test('GET /api/settings/resolved?project= applies per-project override', async (
   }
 });
 
+// Regression: Windows-style project keys contain backslashes that get
+// stripped if any layer (dashboard navigation, URL encoding, route
+// decoding) is incorrect. The dashboard's "Project settings" button
+// (issue #53 iteration 2) deep-links via `/settings?project=<absolute
+// path>`; this exercises the server side of that flow with a path that
+// would be mangled by accidental JS-string interpretation or
+// double-decoding. Tests round-trip persistence: PATCH stores the
+// override under the unencoded key, GET reads it back, and the persisted
+// file uses the literal path with backslashes intact.
+test('per-project routes preserve backslashes in Windows-style keys', async () => {
+  reset();
+  const server = await buildServer();
+  try {
+    const projectPath = 'C:\\dev\\sample-project';
+    const key = encodeURIComponent(projectPath);
+    let res = await request(server, 'PATCH', `/api/settings/projects/${key}`, {
+      defaults: { agent: 'windows-default' },
+    });
+    assert.equal(res.status, 200);
+    assert.equal(res.body.overrides.defaults.agent, 'windows-default');
+    res = await request(server, 'GET', `/api/settings/projects/${key}`);
+    assert.equal(res.status, 200);
+    assert.equal(res.body.overrides.defaults.agent, 'windows-default');
+    // Persisted file must use the literal unencoded path as the key,
+    // backslashes intact (no double-encoding, no escape mangling).
+    const raw = JSON.parse(fs.readFileSync(PROJECT_SETTINGS_FILE, 'utf8'));
+    assert.ok(raw.projects && raw.projects[projectPath],
+      `expected key ${projectPath} in persisted file; got keys ${Object.keys(raw.projects || {}).join(', ')}`);
+    assert.equal(raw.projects[projectPath].defaults.agent, 'windows-default');
+  } finally {
+    server.close();
+  }
+});
+
+// Pure-JS round-trip: project keys with backslashes must survive being
+// embedded in a query string and read back via URLSearchParams. This is
+// the contract the dashboard's "Project settings" deep-link relies on.
+test('project key with backslashes survives URL round-trip', () => {
+  const original = 'C:\\dev\\sample-project';
+  const url = new URL('http://localhost/settings');
+  url.searchParams.set('project', original);
+  const got = new URLSearchParams(url.search).get('project');
+  assert.equal(got, original);
+});
+
 test('GET /api/settings/resolved?project= falls back to global when no override', async () => {
   reset();
   const server = await buildServer();
