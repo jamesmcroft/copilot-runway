@@ -84,3 +84,75 @@ test('an aborted signal causes fetch to reject with AbortError', async () => {
 
   await assert.rejects(pending, (err) => err.name === 'AbortError');
 });
+
+// --- searchSessions (issue #9) ------------------------------------------
+
+test('searchSessions builds the URL with q and limit, forwards the signal', async () => {
+  const { fn, calls } = stubFetch({
+    status: 200,
+    ok: true,
+    json: async () => ({ results: [{ id: 'abc' }], limit: 50 }),
+  });
+  const client = ApiClient.createClient(fn);
+
+  const controller = new AbortController();
+  const result = await client.searchSessions('the quick brown fox', {
+    limit: 25,
+    signal: controller.signal,
+  });
+
+  assert.equal(calls.length, 1);
+  // The path must encode the query so spaces and operators do not corrupt
+  // the URL.
+  assert.ok(calls[0].path.startsWith('/api/sessions/search?'), 'path should hit /search');
+  const url = new URL(calls[0].path, 'http://x');
+  assert.equal(url.searchParams.get('q'), 'the quick brown fox');
+  assert.equal(url.searchParams.get('limit'), '25');
+  assert.equal(calls[0].options.signal, controller.signal);
+  assert.equal(result.status, 200);
+  assert.deepEqual(result.body.results, [{ id: 'abc' }]);
+});
+
+test('searchSessions omits limit and cursor when not provided', async () => {
+  const { fn, calls } = stubFetch({
+    status: 200,
+    ok: true,
+    json: async () => ({ results: [], limit: 50 }),
+  });
+  const client = ApiClient.createClient(fn);
+  await client.searchSessions('alpha');
+  const url = new URL(calls[0].path, 'http://x');
+  assert.equal(url.searchParams.get('q'), 'alpha');
+  assert.equal(url.searchParams.has('limit'), false);
+  assert.equal(url.searchParams.has('cursor'), false);
+});
+
+test('searchSessions returns the raw body on non-2xx so the caller can branch on error codes', async () => {
+  const { fn } = stubFetch({
+    status: 503,
+    ok: false,
+    json: async () => ({ error: 'search index unavailable', code: 'fts_unavailable' }),
+  });
+  const client = ApiClient.createClient(fn);
+  const { status, body } = await client.searchSessions('alpha');
+  assert.equal(status, 503);
+  assert.equal(body.code, 'fts_unavailable');
+});
+
+test('searchStatus reports availability based on the server response', async () => {
+  const { fn } = stubFetch({
+    status: 200,
+    ok: true,
+    json: async () => ({ available: true }),
+  });
+  const client = ApiClient.createClient(fn);
+  const result = await client.searchStatus();
+  assert.deepEqual(result, { available: true });
+});
+
+test('searchStatus returns { available: false } when the probe fails', async () => {
+  const fn = () => Promise.reject(new Error('boom'));
+  const client = ApiClient.createClient(fn);
+  const result = await client.searchStatus();
+  assert.deepEqual(result, { available: false });
+});

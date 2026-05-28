@@ -92,6 +92,11 @@
           <button class="status-filter-btn" data-status="stale" onclick="selectFilter('stale')">Stale</button>
         </div>
         <input id="session-search" type="search" placeholder="Search sessions..." oninput="handleSearchInput(this.value)">
+        <label class="content-search-toggle" id="session-search-content-wrap" hidden>
+          <input type="checkbox" id="session-search-content-toggle" onchange="handleContentSearchToggle(this.checked)" aria-describedby="session-search-content-hint">
+          <span>Search conversation content</span>
+          <span class="content-search-hint" id="session-search-content-hint">Searches turn text via the local index.</span>
+        </label>
         <select id="session-sort" onchange="handleSortChange(this.value)">
           <option value="updated">Recently updated</option>
           <option value="created">Recently created</option>

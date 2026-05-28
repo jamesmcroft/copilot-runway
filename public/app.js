@@ -106,6 +106,7 @@ const FILTER_DEFAULTS = {
   project: null,
   status: 'all',
   hasRef: false,
+  contentSearch: false,
 };
 const SORT_DEFAULT = 'updated';
 
@@ -135,6 +136,7 @@ const STORAGE_KEYS = {
   project: STORAGE_PREFIX + 'filter:project',
   status: STORAGE_PREFIX + 'filter:status',
   hasRef: STORAGE_PREFIX + 'filter:hasRef',
+  contentSearch: STORAGE_PREFIX + 'filter:contentSearch',
   sort: STORAGE_PREFIX + 'sort',
 };
 
@@ -145,6 +147,7 @@ function loadFiltersFromStorage() {
     appState.filters.project = project && project !== 'null' ? project : FILTER_DEFAULTS.project;
     appState.filters.status = localStorage.getItem(STORAGE_KEYS.status) ?? FILTER_DEFAULTS.status;
     appState.filters.hasRef = (localStorage.getItem(STORAGE_KEYS.hasRef) ?? (FILTER_DEFAULTS.hasRef ? '1' : '0')) === '1';
+    appState.filters.contentSearch = (localStorage.getItem(STORAGE_KEYS.contentSearch) ?? (FILTER_DEFAULTS.contentSearch ? '1' : '0')) === '1';
     appState.sort = localStorage.getItem(STORAGE_KEYS.sort) ?? SORT_DEFAULT;
   } catch {
     // Corrupted storage should never block boot.
@@ -163,6 +166,7 @@ function persistFilters() {
     }
     localStorage.setItem(STORAGE_KEYS.status, appState.filters.status);
     localStorage.setItem(STORAGE_KEYS.hasRef, appState.filters.hasRef ? '1' : '0');
+    localStorage.setItem(STORAGE_KEYS.contentSearch, appState.filters.contentSearch ? '1' : '0');
     localStorage.setItem(STORAGE_KEYS.sort, appState.sort);
   } catch {}
 }
@@ -196,11 +200,34 @@ function isAbortError(err) {
   return err && (err.name === 'AbortError' || err.code === 20);
 }
 
+// Conversation content search state (issue #9). The toggle is hidden
+// unless the server reports the FTS5 index is available. When the toggle
+// is on and the query is non-empty, `results` holds the server-returned
+// hits keyed by session id (with an attached `snippet` field) and the
+// renderer reads from this list instead of `appState.sessions`. A
+// per-request AbortController cancels any in-flight search on every
+// keystroke, mirroring the `inFlightDetail` pattern from issue #49.
+const contentSearchState = {
+  available: false,
+  status: 'idle', // 'idle' | 'searching' | 'ready' | 'error' | 'unavailable'
+  results: [],
+  error: null,
+  lastQuery: '',
+};
+let inFlightContentSearch = null;
+
+function abortInFlightContentSearch() {
+  if (inFlightContentSearch) {
+    inFlightContentSearch.abort();
+    inFlightContentSearch = null;
+  }
+}
+
 // Init
 async function init() {
   loadFiltersFromStorage();
   applyFiltersToControls();
-  await Promise.all([loadStats(), loadProjects(), loadSessions(), loadAgents(), loadPins()]);
+  await Promise.all([loadStats(), loadProjects(), loadSessions(), loadAgents(), loadPins(), probeContentSearch()]);
   // Recover from a stale persisted project filter: if the saved cwd no
   // longer matches any known project, drop it so the user is not stuck
   // staring at an empty list with no obvious cause.
@@ -210,7 +237,47 @@ async function init() {
     updateMainTitle();
     renderSessions();
   }
+  // If content search is persisted-on and we already have a query, kick
+  // off a server search on boot so the user sees the same view as their
+  // last session.
+  if (appState.filters.contentSearch && contentSearchState.available && (appState.filters.search || '').trim()) {
+    runContentSearch();
+  }
   startEventStream();
+}
+
+async function probeContentSearch() {
+  if (!ApiClient.searchStatus) return;
+  try {
+    const { available } = await ApiClient.searchStatus();
+    contentSearchState.available = !!available;
+  } catch {
+    contentSearchState.available = false;
+  }
+  // If the feature is unavailable, force the persisted toggle off so we
+  // never run server searches against an index that does not exist.
+  if (!contentSearchState.available && appState.filters.contentSearch) {
+    appState.filters.contentSearch = false;
+    persistFilters();
+  }
+  applyContentSearchControl();
+}
+
+function applyContentSearchControl() {
+  const wrap = document.getElementById('session-search-content-wrap');
+  const box = document.getElementById('session-search-content-toggle');
+  if (!wrap || !box) return;
+  if (contentSearchState.available) {
+    wrap.removeAttribute('hidden');
+    box.checked = !!appState.filters.contentSearch;
+    box.disabled = false;
+    wrap.title = '';
+  } else {
+    wrap.setAttribute('hidden', '');
+    box.checked = false;
+    box.disabled = true;
+    wrap.title = 'Conversation index not available on this machine.';
+  }
 }
 
 function applyFiltersToControls() {
@@ -220,6 +287,8 @@ function applyFiltersToControls() {
   if (sortSelect) sortSelect.value = appState.sort;
   const hasRefBox = document.getElementById('filter-has-ref');
   if (hasRefBox) hasRefBox.checked = !!appState.filters.hasRef;
+  const contentBox = document.getElementById('session-search-content-toggle');
+  if (contentBox) contentBox.checked = !!appState.filters.contentSearch;
   document.querySelectorAll('.status-filter-btn').forEach(el => {
     el.classList.toggle('active', el.dataset.status === appState.filters.status);
   });
@@ -527,12 +596,12 @@ async function togglePin(sessionId, event) {
   }
 }
 
-function applyFiltersAndSort(rawSessions) {
+function applyFiltersAndSort(rawSessions, { skipSearch = false } = {}) {
   const { search, project, status, hasRef } = appState.filters;
   const searchLower = (search || '').trim().toLowerCase();
 
   let list = rawSessions.filter(s => {
-    if (searchLower) {
+    if (!skipSearch && searchLower) {
       const haystack = [s.name, s.repository, s.branch, s.summary]
         .filter(Boolean)
         .join(' ')
@@ -642,6 +711,12 @@ function renderSessionCard(s) {
   const preview = s.last_assistant_preview
     ? `<div class="session-last-msg" title="${esc(s.last_assistant_preview)}">${esc(s.last_assistant_preview)}</div>`
     : '';
+  // Snippet is server-rendered: the body is HTML-escaped and only the
+  // <mark> wrappers around matched tokens are real HTML. innerHTML is
+  // safe here because that escape pass runs in the route.
+  const snippet = s.snippet
+    ? `<div class="session-content-snippet">${s.snippet}</div>`
+    : '';
   return `
     <div class="session-card ${appState.selectedSessionId === s.id ? 'selected' : ''}"
          onclick="selectSession('${s.id}')">
@@ -658,6 +733,7 @@ function renderSessionCard(s) {
         ${s.branch ? `<span class="session-meta-item">&#x1F33F; ${esc(s.branch)}</span>` : ''}
         ${s.repository ? `<span class="session-meta-item">&#x1F4E6; ${esc(s.repository)}</span>` : ''}
       </div>
+      ${snippet}
       ${preview}
       ${cardMeta}
     </div>
@@ -666,6 +742,41 @@ function renderSessionCard(s) {
 
 function renderSessions() {
   const container = document.getElementById('session-list');
+
+  // Content-search path: when the toggle is on and a query is active,
+  // render server FTS hits as the primary list. Status / project /
+  // hasRef still compose on top so the user can narrow further.
+  const usingContentSearch =
+    appState.filters.contentSearch &&
+    contentSearchState.available &&
+    (appState.filters.search || '').trim().length > 0;
+
+  if (usingContentSearch) {
+    if (contentSearchState.status === 'searching') {
+      container.innerHTML = `<div class="detail-empty">Searching conversations&#x2026;</div>`;
+      return;
+    }
+    if (contentSearchState.status === 'error') {
+      const msg = esc(contentSearchState.error || 'Search failed. Try again.');
+      container.innerHTML = `<div class="detail-empty">${msg}</div>`;
+      return;
+    }
+    // Compose: apply non-search client filters (project / status /
+    // hasRef) on top of the server result set so the same toolbar still
+    // works while content search is active.
+    const composed = applyFiltersAndSort(contentSearchState.results, { skipSearch: true });
+    if (composed.length === 0) {
+      const totalHits = contentSearchState.results.length;
+      const msg = totalHits > 0
+        ? `No content matches with the current filters. ${totalHits} hit${totalHits === 1 ? '' : 's'} hidden by filters.`
+        : 'No conversations match this query.';
+      container.innerHTML = `<div class="detail-empty">${esc(msg)}</div>`;
+      return;
+    }
+    container.innerHTML = composed.map(renderSessionCard).join('');
+    return;
+  }
+
   const visible = applyFiltersAndSort(appState.sessions);
   if (visible.length === 0) {
     const desc = describeActiveFilters();
@@ -950,15 +1061,115 @@ function clearProjectFilter() {
   renderSessions();
 }
 
-// Search input (debounced)
+// Search input (debounced). When the content-search toggle is on, we
+// kick off a server FTS query; otherwise the existing client-side
+// substring filter handles things.
 let searchDebounceTimer = null;
 function handleSearchInput(value) {
   appState.filters.search = value;
   if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
   searchDebounceTimer = setTimeout(() => {
     persistFilters();
-    renderSessions();
+    if (appState.filters.contentSearch && contentSearchState.available) {
+      runContentSearch();
+    } else {
+      renderSessions();
+    }
   }, 250);
+}
+
+function handleContentSearchToggle(checked) {
+  appState.filters.contentSearch = !!checked;
+  persistFilters();
+  if (appState.filters.contentSearch) {
+    if (!contentSearchState.available) {
+      // Defensive: the control should be disabled in this case, but if
+      // the user somehow flipped it we re-probe and reset.
+      probeContentSearch().then(() => {
+        if (contentSearchState.available) runContentSearch();
+        else renderSessions();
+      });
+      return;
+    }
+    if ((appState.filters.search || '').trim()) {
+      runContentSearch();
+    } else {
+      contentSearchState.status = 'idle';
+      contentSearchState.results = [];
+      renderSessions();
+    }
+  } else {
+    abortInFlightContentSearch();
+    contentSearchState.status = 'idle';
+    contentSearchState.results = [];
+    contentSearchState.error = null;
+    renderSessions();
+  }
+}
+
+// Debounce + AbortController for the server-backed content search.
+// Mirrors the inFlightDetail pattern from issue #49 so a fast typist
+// only ever has one in-flight request.
+async function runContentSearch() {
+  const q = (appState.filters.search || '').trim();
+  if (!q) {
+    contentSearchState.status = 'idle';
+    contentSearchState.results = [];
+    contentSearchState.error = null;
+    renderSessions();
+    return;
+  }
+  if (q.length > 200) {
+    contentSearchState.status = 'error';
+    contentSearchState.error = 'Query is too long. Shorten it to 200 characters or fewer.';
+    renderSessions();
+    return;
+  }
+  abortInFlightContentSearch();
+  const controller = new AbortController();
+  inFlightContentSearch = controller;
+  contentSearchState.status = 'searching';
+  contentSearchState.error = null;
+  contentSearchState.lastQuery = q;
+  renderSessions();
+  try {
+    const { status, body } = await ApiClient.searchSessions(q, { limit: 50, signal: controller.signal });
+    if (controller.signal.aborted) return;
+    if (status === 200) {
+      contentSearchState.status = 'ready';
+      contentSearchState.results = Array.isArray(body.results) ? body.results : [];
+    } else if (status === 503 && body && body.code === 'fts_unavailable') {
+      contentSearchState.status = 'unavailable';
+      contentSearchState.available = false;
+      contentSearchState.results = [];
+      appState.filters.contentSearch = false;
+      persistFilters();
+      applyContentSearchControl();
+    } else if (status === 503 && body && body.code === 'fts_timeout') {
+      contentSearchState.status = 'error';
+      contentSearchState.error = 'Search timed out. Try a more specific query.';
+      contentSearchState.results = [];
+    } else if (status === 400) {
+      contentSearchState.status = 'error';
+      contentSearchState.error = (body && body.error) || 'Invalid search query.';
+      contentSearchState.results = [];
+    } else {
+      contentSearchState.status = 'error';
+      contentSearchState.error = 'Search failed. Try again.';
+      contentSearchState.results = [];
+    }
+  } catch (err) {
+    if (isAbortError(err)) return;
+    console.error('[runway] content search failed:', err);
+    contentSearchState.status = 'error';
+    contentSearchState.error = 'Search failed. Try again.';
+    contentSearchState.results = [];
+  } finally {
+    if (inFlightContentSearch === controller) {
+      inFlightContentSearch = null;
+    }
+    renderSessions();
+  }
 }
 
 function handleSortChange(value) {
