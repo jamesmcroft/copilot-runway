@@ -137,6 +137,43 @@ Fenced code blocks in the conversation view are highlighted with [Prism](https:/
 
 Runway only ever reads the CLI's SQLite files via `better-sqlite3` in read-only mode (WAL-safe) and subscribes to filesystem change notifications. It never locks or writes the CLI's files, so there is no interference with the CLI as the active writer. `fs.watch` events from SQLite WAL commits are debounced (250 ms) to avoid event storms.
 
+### Worktrees
+
+Each session can opt in to a dedicated git worktree so parallel sessions on the same project never step on each other's files. The feature is fully opt in: new sessions get no worktree by default, and you bind one explicitly from the session detail panel.
+
+**How binding works**
+
+1. Open a session and click **Bind worktree** in the Worktree section of the detail panel.
+2. Runway creates a new branch `runway/<session-id-short>` (the first eight alphanumeric characters of the session id) off the project's current `HEAD`.
+3. Runway runs `git worktree add` to materialize the branch under `<worktrees.root>/<sanitized-project-name>/<session-id-short>` on disk and persists the path-to-session binding in `~/.runway/worktree-bindings.json`.
+
+The sanitized project name is the project folder basename, lowercased, with non-alphanumeric characters folded to single hyphens, trimmed, and capped at 64 characters. The slug is purely a directory naming convenience; the canonical project key remains the absolute path.
+
+**Where worktrees live**
+
+The root directory is controlled by the `worktrees.root` global setting (see `/settings`). The default is `~/.runway/worktrees` and a leading `~` is expanded to your home directory. The setting is global only: there is no per-project override, so every project's worktrees are siblings under a single tree.
+
+**Opening a worktree**
+
+Once bound, the panel offers **Open worktree in VS Code** which launches your editor at the worktree path via the `vscode://file/...` URL handler. The same handler is used by Code, Code-Insiders, Cursor, and Codium, so the action respects whatever editor binary your OS has configured.
+
+**Manual cleanup**
+
+Removal is always manual. The **Remove worktree** button opens a confirmation modal that shows the path and a `clean` or `dirty` badge based on `git status --porcelain`. The modal exposes two opt in checkboxes:
+
+- **Force removal**: passes `--force` to `git worktree remove`. Required when the worktree has uncommitted changes; the server rejects a non-force delete on a dirty tree with HTTP 409.
+- **Also delete the branch**: deletes the local `runway/<id>` branch after the worktree is gone. Disabled when the branch has commits beyond the branch point (Runway checks reachability with `git merge-base --is-ancestor`), so you can never lose work in flight by accident.
+
+There is no automatic cleanup on session end or server restart. Bindings persist across restarts and only the explicit Remove action drops them.
+
+**Concurrency**
+
+A worktree path can be bound to at most one session at a time. If a second session resolves to the same path (for example, two session ids share the same eight-character prefix on the same project), the server returns HTTP 409 with the bound session id. The UI shows a "Focus the bound session" dialog whose button navigates straight to that session.
+
+**Diffing two worktrees**
+
+The compare-worktrees UI is out of scope for this iteration. Use `git diff` from either worktree directly for now.
+
 ## Project structure
 
 ```
@@ -214,6 +251,10 @@ All endpoints are localhost-only with CORS origin protection.
 | `GET`  | `/api/agents`                                     | List available custom agents (cached 5 min)                                     |
 | `GET`  | `/api/stats`                                      | Dashboard stats (total sessions, active count, recent activity)                 |
 | `GET`  | `/api/events`                                     | SSE stream of session lifecycle and DB activity events                          |
+| `GET`  | `/api/sessions/:id/worktree`                      | Worktree binding state for a session (`{ bound, worktreePath?, branchName?, dirty?, canDeleteBranch? }`) |
+| `POST` | `/api/sessions/:id/worktree`                      | Bind a fresh worktree to the session. Returns 201 on create, 200 when already bound, 409 with `boundSessionId` on concurrency |
+| `DELETE` | `/api/sessions/:id/worktree`                    | Remove the bound worktree. Body: `{ force?, deleteBranch? }`. 409 on dirty without force                |
+| `GET`  | `/api/projects/:projectKey/worktrees`             | List worktrees for a project, enriched with the bound session id where applicable                       |
 
 ## Configuration
 
