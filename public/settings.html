@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Settings - Copilot Runway</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="settings.css">
+  <script>
+    // Apply theme + palette immediately to avoid a flash. Mirrors the
+    // bootstrap in index.html so the settings page renders in the user's
+    // chosen palette on first paint. data-theme is mirrored onto the
+    // body so palette CSS (body[data-palette][data-theme]) matches.
+    (function () {
+      var pref = localStorage.getItem('copilot-dashboard-theme') || 'system';
+      var resolved = pref;
+      if (pref === 'system') {
+        resolved = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+      }
+      document.documentElement.setAttribute('data-theme', resolved);
+      function applyBody() { if (document.body) document.body.setAttribute('data-theme', resolved); }
+      if (document.body) applyBody();
+      else document.addEventListener('DOMContentLoaded', applyBody, { once: true });
+    })();
+  </script>
+  <script src="path-match.js"></script>
+  <script src="api-client.js"></script>
+  <script src="palettes.js"></script>
+  <script src="agent-picker.js"></script>
+</head>
+<body>
+  <div class="settings-shell">
+    <h1>Settings</h1>
+    <p class="settings-intro">
+      Configure default behavior for Copilot Runway. Global settings apply to every
+      project; per-project overrides apply only to a selected project. Visual
+      preferences (theme mode and palette) stay on this device and are not stored
+      on the server.
+    </p>
+
+    <div class="settings-toolbar">
+      <a class="button-link" href="/">&larr; Back to dashboard</a>
+    </div>
+
+    <div id="settings-summary"></div>
+
+    <section class="settings-section">
+      <h2>Appearance</h2>
+      <p class="section-help">
+        These preferences live in this browser only. Switching device or browser
+        resets them to defaults.
+      </p>
+      <div class="settings-field">
+        <div class="settings-field-label">Theme mode</div>
+        <select id="theme-mode-select">
+          <option value="system">Sync with system</option>
+          <option value="light">Light</option>
+          <option value="dark">Dark</option>
+        </select>
+      </div>
+      <div class="settings-field">
+        <div class="settings-field-label">Palette</div>
+        <div class="settings-field-help">Palette CSS files load on demand the first time you pick one.</div>
+        <select id="palette-select"></select>
+      </div>
+    </section>
+
+    <section class="settings-section">
+      <h2>Global behavior</h2>
+      <p class="section-help">
+        Server-side defaults. Stored in <code>~/.runway/settings.json</code> and
+        atomically rewritten on save.
+      </p>
+      <div id="global-fields"></div>
+      <div class="settings-actions">
+        <button id="save-global" type="button">Save global</button>
+      </div>
+    </section>
+
+    <section class="settings-section">
+      <h2>Per-project overrides</h2>
+      <p class="section-help">
+        Overrides apply when working in the selected project. Pick the project,
+        flip on an override, and only those fields will deviate from the global
+        defaults.
+      </p>
+      <div class="settings-field">
+        <div class="settings-field-label">Project</div>
+        <select id="project-select">
+          <option value="">(select a project)</option>
+        </select>
+      </div>
+      <div id="project-fields"></div>
+      <div class="settings-actions">
+        <button id="save-project" type="button" disabled>Save project overrides</button>
+        <button id="clear-project" type="button" class="secondary" disabled>Clear all overrides</button>
+      </div>
+    </section>
+  </div>
+
+  <script src="settings.js"></script>
+</body>
+</html>

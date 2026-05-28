@@ -1,0 +1,53 @@
+/*
+ * Palette: Monokai-inspired (light + dark)
+ *
+ * Named to sidestep trademark on the "Monokai" mark. Color choices are
+ * a free reinterpretation of the broad Monokai-family aesthetic
+ * (warm dark background, green/pink accents, plus a defensible light
+ * counterpart). Not affiliated with or endorsed by Sublime HQ.
+ */
+body[data-palette="monokai-inspired"][data-theme="dark"] {
+  --bg-primary: #272822;
+  --bg-secondary: #1e1f1c;
+  --bg-tertiary: #3e3d32;
+  --bg-hover: #49483e;
+  --border: #49483e;
+  --text-primary: #f8f8f2;
+  --text-secondary: #cfcfc2;
+  --text-muted: #75715e;
+  --accent: #a6e22e;
+  --accent-hover: #b6f24a;
+  --accent-subtle: rgba(166, 226, 46, 0.12);
+  --green: #a6e22e;
+  --green-subtle: rgba(166, 226, 46, 0.15);
+  --yellow: #e6db74;
+  --red: #f92672;
+  --red-subtle: rgba(249, 38, 114, 0.15);
+  --purple: #ae81ff;
+  --shadow: 0 1px 3px rgba(0, 0, 0, 0.45);
+  --scrollbar-thumb: #49483e;
+  --scrollbar-hover: #75715e;
+}
+
+body[data-palette="monokai-inspired"][data-theme="light"] {
+  --bg-primary: #fafaf5;
+  --bg-secondary: #f1f1e6;
+  --bg-tertiary: #e6e6d4;
+  --bg-hover: #d8d8c4;
+  --border: #d8d8c4;
+  --text-primary: #272822;
+  --text-secondary: #49483e;
+  --text-muted: #75715e;
+  --accent: #4a8a00;
+  --accent-hover: #3a6e00;
+  --accent-subtle: rgba(74, 138, 0, 0.12);
+  --green: #4a8a00;
+  --green-subtle: rgba(74, 138, 0, 0.12);
+  --yellow: #b58900;
+  --red: #c81e5b;
+  --red-subtle: rgba(200, 30, 91, 0.12);
+  --purple: #7c4dff;
+  --shadow: 0 1px 3px rgba(39, 40, 34, 0.12);
+  --scrollbar-thumb: #d8d8c4;
+  --scrollbar-hover: #75715e;
+}

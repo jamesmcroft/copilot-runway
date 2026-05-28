@@ -13,6 +13,7 @@ const sendRouter = require('./lib/routes/send');
 const agentsRouter = require('./lib/routes/agents');
 const statsRouter = require('./lib/routes/stats');
 const pinsRouter = require('./lib/routes/pins');
+const settingsRouter = require('./lib/routes/settings');
 const createEventsRouter = require('./lib/routes/events');
 const { createLaunchRouter } = require('./lib/launch');
 const { openSessionStoreDb } = require('./lib/store/db');
@@ -70,6 +71,12 @@ app.use('/api/sessions', sessionsRouter);
 app.use('/api/agents', agentsRouter);
 app.use('/api/stats', statsRouter);
 app.use('/api/pins', pinsRouter);
+app.use('/api/settings', settingsRouter);
+// Serve the standalone settings page (loaded by app.js for topbar +
+// theme bootstrap, then settings.js for the schema-driven form).
+app.get('/settings', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'settings.html'));
+});
 app.use('/api/events', createEventsRouter(runwayEvents, { snapshot: lifecycle.snapshot }));
 
 // Launch endpoints (Open in VS Code / Open in Terminal). The DB-backed

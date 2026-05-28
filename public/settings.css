@@ -1,0 +1,236 @@
+/* Settings page layout (issue #53).
+ * Reuses the base theme variables defined in styles.css so a palette
+ * change applies to both the dashboard and the settings page.
+ */
+
+.settings-shell {
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 32px 24px 80px;
+  color: var(--text-primary);
+}
+
+.settings-shell h1 {
+  margin: 0 0 8px;
+  font-size: 28px;
+}
+
+.settings-shell .settings-intro {
+  color: var(--text-secondary);
+  margin-bottom: 24px;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.settings-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding: 12px 16px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.settings-toolbar label {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.settings-toolbar select,
+.settings-toolbar a.button-link {
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 6px 10px;
+  font-size: 13px;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.settings-toolbar a.button-link:hover {
+  background: var(--bg-hover);
+}
+
+.settings-section {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 20px 24px;
+  margin-bottom: 20px;
+}
+
+.settings-section h2 {
+  margin: 0 0 4px;
+  font-size: 18px;
+}
+
+.settings-section .section-help {
+  color: var(--text-secondary);
+  font-size: 13px;
+  margin-bottom: 16px;
+}
+
+.settings-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px dashed var(--border);
+}
+
+.settings-field:last-child {
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+.settings-field-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.settings-field-help {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.settings-field input,
+.settings-field select {
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 8px 10px;
+  font-size: 13px;
+  font-family: inherit;
+  width: 100%;
+  max-width: 420px;
+  box-sizing: border-box;
+}
+
+.settings-field input:focus,
+.settings-field select:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+/* Agent picker (issue #53 iteration 2). Native combobox built from
+ * <input list> + <datalist>; the wrapper just constrains width and
+ * stacks the validation warning under the input. */
+.agent-picker {
+  display: block;
+  width: 100%;
+  max-width: 420px;
+}
+
+.agent-picker .agent-picker-input {
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 8px 10px;
+  font-size: 13px;
+  font-family: inherit;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.agent-picker .agent-picker-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.agent-picker .agent-picker-warning {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--yellow);
+}
+
+.settings-field .field-error {
+  font-size: 12px;
+  color: #d23030;
+  min-height: 14px;
+}
+
+[data-theme="dark"] .settings-field .field-error {
+  color: #ff7b72;
+}
+
+.settings-field .inherits-pill {
+  background: var(--bg-tertiary);
+  color: var(--text-muted);
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 10px;
+  font-weight: 400;
+}
+
+.settings-field .override-pill {
+  background: var(--accent-subtle);
+  color: var(--accent);
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 10px;
+  font-weight: 500;
+}
+
+.settings-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-top: 8px;
+}
+
+.settings-actions button {
+  background: var(--accent);
+  color: var(--bg-primary);
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  padding: 8px 14px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.settings-actions button.secondary {
+  background: transparent;
+  color: var(--text-primary);
+  border-color: var(--border);
+}
+
+.settings-actions button:hover { opacity: 0.9; }
+.settings-actions button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.settings-summary {
+  border: 1px solid #d23030;
+  background: rgba(210, 48, 48, 0.08);
+  color: #d23030;
+  padding: 12px 14px;
+  border-radius: 6px;
+  margin-bottom: 16px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+[data-theme="dark"] .settings-summary {
+  border-color: #ff7b72;
+  color: #ff7b72;
+  background: rgba(255, 123, 114, 0.08);
+}
+
+.settings-summary.success {
+  border-color: #2da44e;
+  color: #2da44e;
+  background: rgba(45, 164, 78, 0.08);
+}
+
+.settings-summary ul {
+  margin: 6px 0 0;
+  padding-left: 20px;
+}

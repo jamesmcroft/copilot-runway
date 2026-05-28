@@ -1,0 +1,52 @@
+/*
+ * Palette: Catppuccin (Mocha + Latte)
+ * Source:  catppuccin/catppuccin, https://github.com/catppuccin/catppuccin
+ * License: MIT (Copyright (c) 2021-present Catppuccin Org and contributors)
+ *
+ * Dark variant maps to the Mocha flavour; light variant maps to Latte.
+ */
+body[data-palette="catppuccin"][data-theme="dark"] {
+  --bg-primary: #1e1e2e;
+  --bg-secondary: #181825;
+  --bg-tertiary: #313244;
+  --bg-hover: #45475a;
+  --border: #313244;
+  --text-primary: #cdd6f4;
+  --text-secondary: #bac2de;
+  --text-muted: #7f849c;
+  --accent: #cba6f7;
+  --accent-hover: #dec2fc;
+  --accent-subtle: rgba(203, 166, 247, 0.15);
+  --green: #a6e3a1;
+  --green-subtle: rgba(166, 227, 161, 0.15);
+  --yellow: #f9e2af;
+  --red: #f38ba8;
+  --red-subtle: rgba(243, 139, 168, 0.15);
+  --purple: #b4befe;
+  --shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+  --scrollbar-thumb: #45475a;
+  --scrollbar-hover: #7f849c;
+}
+
+body[data-palette="catppuccin"][data-theme="light"] {
+  --bg-primary: #eff1f5;
+  --bg-secondary: #e6e9ef;
+  --bg-tertiary: #dce0e8;
+  --bg-hover: #ccd0da;
+  --border: #ccd0da;
+  --text-primary: #4c4f69;
+  --text-secondary: #5c5f77;
+  --text-muted: #6c6f85;
+  --accent: #8839ef;
+  --accent-hover: #7227d6;
+  --accent-subtle: rgba(136, 57, 239, 0.12);
+  --green: #40a02b;
+  --green-subtle: rgba(64, 160, 43, 0.12);
+  --yellow: #df8e1d;
+  --red: #d20f39;
+  --red-subtle: rgba(210, 15, 57, 0.12);
+  --purple: #7287fd;
+  --shadow: 0 1px 3px rgba(76, 79, 105, 0.12);
+  --scrollbar-thumb: #ccd0da;
+  --scrollbar-hover: #6c6f85;
+}

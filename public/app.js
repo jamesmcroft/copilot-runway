@@ -15,6 +15,9 @@ function resolveTheme(pref) {
 function applyTheme(pref) {
   const resolved = resolveTheme(pref);
   document.documentElement.setAttribute('data-theme', resolved);
+  if (document.body) {
+    document.body.setAttribute('data-theme', resolved);
+  }
 
   // Update switcher button states
   document.querySelectorAll('.theme-btn').forEach(btn => {
@@ -36,6 +39,29 @@ window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () 
 
 // Apply saved theme on load
 applyTheme(getThemePreference());
+
+// Palette bootstrap (issue #53). Read the user's stored palette and
+// inject the palette stylesheet on demand. RunwayPalettes is a UMD
+// module loaded via palettes.js in index.html; it is safe to skip when
+// the module is absent (defensive against script-order changes).
+if (typeof RunwayPalettes !== 'undefined') {
+  try {
+    const storedPalette = RunwayPalettes.readStoredPalette();
+    RunwayPalettes.applyPalette(storedPalette);
+  } catch {}
+}
+
+// Ctrl+, / Cmd+, opens the settings page. Standard shortcut on macOS
+// and an emerging convention on other platforms. We avoid hijacking the
+// shortcut while the user is composing text in an input element other
+// than the chat textarea so plain typing keeps working.
+window.addEventListener('keydown', (e) => {
+  const isAccel = e.metaKey || e.ctrlKey;
+  if (isAccel && e.key === ',') {
+    e.preventDefault();
+    window.location.href = '/settings';
+  }
+});
 
 // Markdown setup
 marked.setOptions({ breaks: true, gfm: true });
@@ -530,6 +556,51 @@ function populateAgentSelects() {
   }
 }
 
+// Resolved settings cache (issue #53 iteration 3). Keyed by project
+// path (empty string for the global-only view). Values are the in-flight
+// promise so concurrent callers share one round-trip. The cache lives
+// for the page lifetime; settings edits flow through /settings on a
+// full page reload, so no invalidation hook is needed today.
+const resolvedSettingsCache = new Map();
+let resolvedAgentMissingWarned = false;
+
+async function getResolvedSettingsFor(projectKey) {
+  const cacheKey = projectKey || '';
+  if (resolvedSettingsCache.has(cacheKey)) {
+    return resolvedSettingsCache.get(cacheKey);
+  }
+  const promise = (async () => {
+    if (!ApiClient.getResolvedSettings) return {};
+    const doc = await ApiClient.getResolvedSettings(projectKey || null);
+    return (doc && doc.values && typeof doc.values === 'object') ? doc.values : {};
+  })();
+  resolvedSettingsCache.set(cacheKey, promise);
+  return promise;
+}
+
+// Pre-select the resolved `defaults.agent` in the given agent <select>.
+// Falls back to the static default (whatever value the select already
+// holds) when the resolved value is empty or not present in the
+// dropdown options, e.g. the agent was removed from agents.json after
+// being saved. The missing-option warning is logged once per page so
+// users are not spammed each time the dropdown opens.
+async function applyResolvedAgentToSelect(selectId, projectKey) {
+  const sel = document.getElementById(selectId);
+  if (!sel) return;
+  const values = await getResolvedSettingsFor(projectKey);
+  const agent = values && values.defaults && values.defaults.agent;
+  if (!agent) return;
+  const hasOption = Array.from(sel.options).some(o => o.value === agent);
+  if (!hasOption) {
+    if (!resolvedAgentMissingWarned) {
+      console.warn(`[runway] resolved defaults.agent "${agent}" is not in the agent list; falling back to static default`);
+      resolvedAgentMissingWarned = true;
+    }
+    return;
+  }
+  sel.value = agent;
+}
+
 // Projects
 async function loadProjects() {
   try {
@@ -869,10 +940,18 @@ async function selectSession(id) {
     // already on its way through the microtask queue can still resolve here.
     if (id !== appState.selectedSessionId) return;
     renderDetail(detail);
-    // Pre-select the last-known agent for this session
+    // Pre-select the last-known agent for this session. If the session
+    // does not carry one yet, fall back to the resolved per-project (or
+    // global) default so the chat dropdown matches what /settings would
+    // apply.
     const chatAgent = document.getElementById('chat-agent');
     if (chatAgent) {
-      chatAgent.value = detail.agent || '';
+      if (detail.agent) {
+        chatAgent.value = detail.agent;
+      } else {
+        chatAgent.value = '';
+        applyResolvedAgentToSelect('chat-agent', detail.cwd || null);
+      }
     }
   } catch (err) {
     if (isAbortError(err)) return;
@@ -943,6 +1022,17 @@ function renderDetail(detail) {
   `;
 
   // Actions
+  // The project key is dropped into an inline onclick handler, which the
+  // browser parses as a JS string literal. `esc()` only handles HTML
+  // entities, so a Windows path like `C:\src\foo` would have its
+  // backslashes interpreted as JS escape sequences (\s -> s, \f -> form
+  // feed, \b -> backspace) before reaching `openProjectSettings`, leaving
+  // the project key mangled before encodeURIComponent ever runs. Use
+  // `escapeAttr` to escape backslashes and quotes for the JS-string layer
+  // (same pattern as launchVSCodeAtPath below).
+  const projectSettingsBtn = detail.cwd
+    ? `<button class="action-btn" onclick="openProjectSettings('${escapeAttr(detail.cwd)}')">Project settings</button>`
+    : '';
   html += `
     <div class="detail-section">
       <div class="detail-section-title">Actions</div>
@@ -950,6 +1040,7 @@ function renderDetail(detail) {
         <button class="action-btn primary" onclick="launchVSCode('${detail.id}')">Open in VS Code</button>
         <button class="action-btn primary" onclick="launchTerminal('${detail.id}')">Open in Terminal</button>
         <button class="action-btn" onclick="resumeInTerminal('${detail.id}')">Copy command</button>
+        ${projectSettingsBtn}
       </div>
     </div>
   `;
@@ -1037,6 +1128,19 @@ function selectFilter(status) {
   });
   updateMainTitle();
   renderSessions();
+}
+
+// Project settings entry-point (issue #53 iteration 2). The session
+// detail panel exposes a dedicated action button that deep-links to
+// /settings with the project pre-selected; the settings page reads the
+// `project` query parameter on boot and selects it in the project
+// picker. Kept on the global scope because the button uses inline
+// onclick attributes to match the other detail-panel actions.
+function openProjectSettings(projectKey) {
+  const url = projectKey
+    ? `/settings?project=${encodeURIComponent(projectKey)}`
+    : '/settings';
+  window.location.href = url;
 }
 
 function selectProjectByIndex(index) {
@@ -1201,6 +1305,11 @@ function toggleNewSession() {
     const cwdInput = document.getElementById('new-session-cwd');
     if (appState.filters.project) cwdInput.value = appState.filters.project;
     document.getElementById('new-session-name').focus();
+    // Fire-and-forget: the dropdown opens with the static default and
+    // the resolved value snaps in once the round-trip lands. Cached
+    // after the first call so subsequent opens for the same project
+    // are synchronous in practice.
+    applyResolvedAgentToSelect('new-session-agent', appState.filters.project || null);
   }
 }
 

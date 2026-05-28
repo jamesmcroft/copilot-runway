@@ -1,0 +1,53 @@
+/*
+ * Palette: Material (light + dark)
+ *
+ * Inspired by the Material Design colour system documented at
+ * https://m3.material.io/styles/color. Individual colour tokens only;
+ * no proprietary assets. Dark uses the documented #263238 surface set.
+ * Light uses the corresponding Material Lighter surface.
+ */
+body[data-palette="material"][data-theme="dark"] {
+  --bg-primary: #263238;
+  --bg-secondary: #1c262b;
+  --bg-tertiary: #2e3c43;
+  --bg-hover: #3a4a52;
+  --border: #37474f;
+  --text-primary: #eeffff;
+  --text-secondary: #b0bec5;
+  --text-muted: #546e7a;
+  --accent: #82aaff;
+  --accent-hover: #a3c1ff;
+  --accent-subtle: rgba(130, 170, 255, 0.16);
+  --green: #c3e88d;
+  --green-subtle: rgba(195, 232, 141, 0.15);
+  --yellow: #ffcb6b;
+  --red: #f07178;
+  --red-subtle: rgba(240, 113, 120, 0.15);
+  --purple: #c792ea;
+  --shadow: 0 1px 3px rgba(0, 0, 0, 0.45);
+  --scrollbar-thumb: #37474f;
+  --scrollbar-hover: #546e7a;
+}
+
+body[data-palette="material"][data-theme="light"] {
+  --bg-primary: #fafafa;
+  --bg-secondary: #eceff1;
+  --bg-tertiary: #cfd8dc;
+  --bg-hover: #b0bec5;
+  --border: #cfd8dc;
+  --text-primary: #263238;
+  --text-secondary: #455a64;
+  --text-muted: #607d8b;
+  --accent: #1976d2;
+  --accent-hover: #1565c0;
+  --accent-subtle: rgba(25, 118, 210, 0.12);
+  --green: #2e7d32;
+  --green-subtle: rgba(46, 125, 50, 0.12);
+  --yellow: #f57c00;
+  --red: #c62828;
+  --red-subtle: rgba(198, 40, 40, 0.12);
+  --purple: #6a1b9a;
+  --shadow: 0 1px 3px rgba(38, 50, 56, 0.12);
+  --scrollbar-thumb: #cfd8dc;
+  --scrollbar-hover: #607d8b;
+}

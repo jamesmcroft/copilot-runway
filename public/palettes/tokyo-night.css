@@ -1,0 +1,54 @@
+/*
+ * Palette: Tokyo Night (Night + Day)
+ * Source:  enkia/tokyo-night-vscode-theme,
+ *          https://github.com/enkia/tokyo-night-vscode-theme
+ * License: MIT (Copyright (c) 2020 enkia)
+ *
+ * Dark variant maps to Tokyo Night Night; light variant maps to
+ * Tokyo Night Day.
+ */
+body[data-palette="tokyo-night"][data-theme="dark"] {
+  --bg-primary: #1a1b26;
+  --bg-secondary: #16161e;
+  --bg-tertiary: #24283b;
+  --bg-hover: #2f344d;
+  --border: #2f344d;
+  --text-primary: #c0caf5;
+  --text-secondary: #a9b1d6;
+  --text-muted: #565f89;
+  --accent: #7aa2f7;
+  --accent-hover: #a4c0fa;
+  --accent-subtle: rgba(122, 162, 247, 0.15);
+  --green: #9ece6a;
+  --green-subtle: rgba(158, 206, 106, 0.15);
+  --yellow: #e0af68;
+  --red: #f7768e;
+  --red-subtle: rgba(247, 118, 142, 0.15);
+  --purple: #bb9af7;
+  --shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+  --scrollbar-thumb: #2f344d;
+  --scrollbar-hover: #565f89;
+}
+
+body[data-palette="tokyo-night"][data-theme="light"] {
+  --bg-primary: #d5d6db;
+  --bg-secondary: #e1e2e7;
+  --bg-tertiary: #cbccd1;
+  --bg-hover: #b7b9c2;
+  --border: #b7b9c2;
+  --text-primary: #3760bf;
+  --text-secondary: #4c569e;
+  --text-muted: #848cb5;
+  --accent: #2e7de9;
+  --accent-hover: #1b66d1;
+  --accent-subtle: rgba(46, 125, 233, 0.12);
+  --green: #587539;
+  --green-subtle: rgba(88, 117, 57, 0.12);
+  --yellow: #8c6c3e;
+  --red: #f52a65;
+  --red-subtle: rgba(245, 42, 101, 0.12);
+  --purple: #9854f1;
+  --shadow: 0 1px 3px rgba(55, 96, 191, 0.12);
+  --scrollbar-thumb: #b7b9c2;
+  --scrollbar-hover: #848cb5;
+}

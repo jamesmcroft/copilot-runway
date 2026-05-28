@@ -1,0 +1,52 @@
+/*
+ * Palette: High Contrast (light + dark)
+ *
+ * Maximum-contrast accessibility palettes. Pure black/white backgrounds,
+ * saturated accents, and full-weight borders. Independent palette, no
+ * upstream attribution.
+ */
+body[data-palette="high-contrast"][data-theme="dark"] {
+  --bg-primary: #000000;
+  --bg-secondary: #0a0a0a;
+  --bg-tertiary: #141414;
+  --bg-hover: #1f1f1f;
+  --border: #ffffff;
+  --text-primary: #ffffff;
+  --text-secondary: #f0f0f0;
+  --text-muted: #c8c8c8;
+  --accent: #ffd700;
+  --accent-hover: #fff168;
+  --accent-subtle: rgba(255, 215, 0, 0.18);
+  --green: #3fff7f;
+  --green-subtle: rgba(63, 255, 127, 0.18);
+  --yellow: #ffd700;
+  --red: #ff5f5f;
+  --red-subtle: rgba(255, 95, 95, 0.18);
+  --purple: #d59bff;
+  --shadow: 0 0 0 1px #ffffff;
+  --scrollbar-thumb: #ffffff;
+  --scrollbar-hover: #c8c8c8;
+}
+
+body[data-palette="high-contrast"][data-theme="light"] {
+  --bg-primary: #ffffff;
+  --bg-secondary: #f5f5f5;
+  --bg-tertiary: #e8e8e8;
+  --bg-hover: #d8d8d8;
+  --border: #000000;
+  --text-primary: #000000;
+  --text-secondary: #1a1a1a;
+  --text-muted: #4a4a4a;
+  --accent: #0033cc;
+  --accent-hover: #0022aa;
+  --accent-subtle: rgba(0, 51, 204, 0.12);
+  --green: #006b2c;
+  --green-subtle: rgba(0, 107, 44, 0.12);
+  --yellow: #8a5a00;
+  --red: #b00020;
+  --red-subtle: rgba(176, 0, 32, 0.12);
+  --purple: #6a1b9a;
+  --shadow: 0 0 0 1px #000000;
+  --scrollbar-thumb: #000000;
+  --scrollbar-hover: #4a4a4a;
+}

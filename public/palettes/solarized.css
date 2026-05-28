@@ -1,0 +1,55 @@
+/*
+ * Palette: Solarized (light + dark)
+ * Source:  Ethan Schoonover, https://ethanschoonover.com/solarized/
+ * License: MIT
+ *   Copyright (c) 2011 Ethan Schoonover. Standard MIT license terms.
+ *
+ * One palette family, two theme variants. The active variant is picked
+ * by data-theme on the body (set by the appearance bootstrap), so the
+ * user's light/dark preference is independent from the palette choice.
+ */
+body[data-palette="solarized"][data-theme="dark"] {
+  --bg-primary: #002b36;
+  --bg-secondary: #073642;
+  --bg-tertiary: #0a4250;
+  --bg-hover: #14586b;
+  --border: #14586b;
+  --text-primary: #eee8d5;
+  --text-secondary: #93a1a1;
+  --text-muted: #657b83;
+  --accent: #268bd2;
+  --accent-hover: #6cb6e6;
+  --accent-subtle: rgba(38, 139, 210, 0.15);
+  --green: #859900;
+  --green-subtle: rgba(133, 153, 0, 0.15);
+  --yellow: #b58900;
+  --red: #dc322f;
+  --red-subtle: rgba(220, 50, 47, 0.15);
+  --purple: #6c71c4;
+  --shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+  --scrollbar-thumb: #14586b;
+  --scrollbar-hover: #586e75;
+}
+
+body[data-palette="solarized"][data-theme="light"] {
+  --bg-primary: #fdf6e3;
+  --bg-secondary: #eee8d5;
+  --bg-tertiary: #e4debc;
+  --bg-hover: #d6cfa3;
+  --border: #d6cfa3;
+  --text-primary: #073642;
+  --text-secondary: #586e75;
+  --text-muted: #93a1a1;
+  --accent: #268bd2;
+  --accent-hover: #1d6fa5;
+  --accent-subtle: rgba(38, 139, 210, 0.12);
+  --green: #859900;
+  --green-subtle: rgba(133, 153, 0, 0.12);
+  --yellow: #b58900;
+  --red: #dc322f;
+  --red-subtle: rgba(220, 50, 47, 0.12);
+  --purple: #6c71c4;
+  --shadow: 0 1px 3px rgba(7, 54, 66, 0.12);
+  --scrollbar-thumb: #d6cfa3;
+  --scrollbar-hover: #93a1a1;
+}
