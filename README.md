@@ -102,6 +102,22 @@ Visual preferences (theme mode, palette family, detail-panel width) stay in brow
 
 **Reset to defaults**: delete the relevant file under `~/.runway/` and reload. Runway will recreate it with schema defaults on the next save. For a partial reset, edit the JSON directly (Runway tolerates unknown keys and falls back to defaults if it cannot parse the file, logging a warning rather than crashing).
 
+### Removing a project
+
+The settings page (per-project section) has a **Remove project** button that hard-purges the project from every Runway-owned state file under `~/.runway/`. The confirmation modal includes:
+
+- A typed-name input. The destructive **Remove** button stays disabled until you type the project's display name (the last path segment) verbatim. Standard guard for irreversible actions.
+- An **Also delete worktree directories on disk** checkbox, default checked. When checked, every worktree directory bound to this project is removed through `git worktree remove --force` so git's worktree metadata stays consistent. When unchecked, the worktree bindings are still cleared from Runway state but the on-disk directories stay for manual recovery.
+- A summary line listing what will be removed, for example "Will remove 1 project entry, 2 setting override groups, 3 pins, 2 worktree bindings."
+
+The sweep is implemented as a dynamic registry over per-project state files (`projects.json`, `project-settings.json`, `pins.json`, `session-agents.json`, `worktree-bindings.json`). New per-project stores can join the sweep without touching the route layer. The global `launchers.json` file is not project-scoped and is left untouched. Every per-file write is atomic (tempfile plus rename), and a missing or malformed individual store is treated as "nothing to remove" rather than a fatal error so a partially corrupt state directory still purges cleanly.
+
+**Active sessions block removal**. If any live Copilot CLI session is attached to the project (an alive PID under `~/.copilot/session-state/<id>/inuse.<pid>.lock`), the server returns HTTP 409 with a body of the form `{ "error": "active_sessions", "sessionIds": [...] }` and performs no state mutations. The modal lists the blocking session ids and prompts you to stop them first; Runway never force-kills sessions on your behalf.
+
+**Idempotent re-delete returns 404**. Once a project's Runway state is gone there is nothing to remove on the second attempt, so the server replies `404 Not Found`. The UI translates a 404 into a "Project is already removed" toast. The 404 response shape is intentional: it is also returned for any other unknown project key so callers can rely on a single not-found path.
+
+**What is preserved**. Historical session rows in the CLI's `~/.copilot/session-store.db` are never touched. Session detail pages still load after the project is removed; their project label degrades to the raw cwd path. The user's repository on disk is never touched under any code path.
+
 ### Live updates
 
 The dashboard subscribes to `/api/events` (Server-Sent Events) for push-based updates so the UI reflects CLI activity within milliseconds instead of waiting for a periodic poll. The server watches two surfaces:
@@ -244,6 +260,8 @@ All endpoints are localhost-only with CORS origin protection.
 | ------ | ------------------------------------------------- | ------------------------------------------------------------------------------- |
 | `GET`  | `/api/projects`                                   | List all projects (CLI + custom), sorted by recent activity                     |
 | `POST` | `/api/projects/add`                               | Add a custom project folder (`{ folderPath, name? }`)                           |
+| `GET`  | `/api/projects/:projectKey/summary`               | Counts of Runway-owned state for the project (`{ projects, projectSettings, pins, sessionAgents, worktreeBindings }`) and the list of active session ids attached to it |
+| `DELETE` | `/api/projects/:projectKey?removeWorktrees=true\|false` | Hard-purge the project. `204` on success, `404` on unknown key (and idempotent re-delete), `409` with `{ error: "active_sessions", sessionIds }` when live sessions are attached, `400` on a malformed key |
 | `GET`  | `/api/sessions?cwd=...&limit=50&active_only=true` | List sessions, optionally filtered by directory                                 |
 | `GET`  | `/api/sessions/active`                            | List all active sessions across all projects                                    |
 | `GET`  | `/api/sessions/:id`                               | Session detail with paginated chronology (turns + inline file events) and checkpoints |
