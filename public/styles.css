@@ -1199,6 +1199,91 @@ a.chronology-file-path:hover {
   margin: 12px 0;
 }
 
+/* Prism syntax highlighting (issue #10). Token classes are mapped to
+   the existing theme variables so a single rule set works in both light
+   and dark mode. We intentionally style only the common tokens emitted
+   by the eagerly-loaded language list (javascript, typescript, jsx, tsx,
+   python, bash, shell-session, powershell, json, yaml, markdown, css,
+   markup, sql, go, rust, csharp, java, diff). Anything not covered here
+   inherits the default code color, which is fine. */
+.turn-assistant .md-content pre code[class*="language-"] {
+  color: var(--text-primary);
+}
+
+.turn-assistant .md-content .token.comment,
+.turn-assistant .md-content .token.prolog,
+.turn-assistant .md-content .token.doctype,
+.turn-assistant .md-content .token.cdata {
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.turn-assistant .md-content .token.punctuation {
+  color: var(--text-secondary);
+}
+
+.turn-assistant .md-content .token.namespace {
+  opacity: 0.7;
+}
+
+.turn-assistant .md-content .token.property,
+.turn-assistant .md-content .token.tag,
+.turn-assistant .md-content .token.constant,
+.turn-assistant .md-content .token.symbol,
+.turn-assistant .md-content .token.deleted {
+  color: var(--red);
+}
+
+.turn-assistant .md-content .token.boolean,
+.turn-assistant .md-content .token.number {
+  color: var(--yellow);
+}
+
+.turn-assistant .md-content .token.selector,
+.turn-assistant .md-content .token.attr-name,
+.turn-assistant .md-content .token.string,
+.turn-assistant .md-content .token.char,
+.turn-assistant .md-content .token.builtin,
+.turn-assistant .md-content .token.inserted {
+  color: var(--green);
+}
+
+.turn-assistant .md-content .token.operator,
+.turn-assistant .md-content .token.entity,
+.turn-assistant .md-content .token.url,
+.turn-assistant .md-content .token.variable {
+  color: var(--text-primary);
+}
+
+.turn-assistant .md-content .token.atrule,
+.turn-assistant .md-content .token.attr-value,
+.turn-assistant .md-content .token.keyword {
+  color: var(--accent);
+}
+
+.turn-assistant .md-content .token.function,
+.turn-assistant .md-content .token.class-name {
+  color: var(--purple);
+}
+
+.turn-assistant .md-content .token.regex,
+.turn-assistant .md-content .token.important {
+  color: var(--yellow);
+}
+
+.turn-assistant .md-content .token.important,
+.turn-assistant .md-content .token.bold {
+  font-weight: bold;
+}
+
+.turn-assistant .md-content .token.italic {
+  font-style: italic;
+}
+
+.turn-assistant .md-content .token.entity {
+  cursor: help;
+}
+
 /* Theme switcher */
 .theme-switcher {
   display: flex;

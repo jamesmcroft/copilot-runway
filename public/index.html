@@ -18,8 +18,34 @@
     })();
   </script>
   <script src="/vendor/marked.umd.js"></script>
+  <!-- Prism core + language components for syntax highlighting in the
+       conversation view (issue #10). Order matters: clike must load
+       before its dependants, markup before jsx/markdown, bash before
+       shell-session, javascript before typescript/jsx, and so on. -->
+  <script src="/vendor/prism/prism.js"></script>
+  <script src="/vendor/prism/components/prism-markup.min.js"></script>
+  <script src="/vendor/prism/components/prism-clike.min.js"></script>
+  <script src="/vendor/prism/components/prism-javascript.min.js"></script>
+  <script src="/vendor/prism/components/prism-typescript.min.js"></script>
+  <script src="/vendor/prism/components/prism-jsx.min.js"></script>
+  <script src="/vendor/prism/components/prism-tsx.min.js"></script>
+  <script src="/vendor/prism/components/prism-css.min.js"></script>
+  <script src="/vendor/prism/components/prism-python.min.js"></script>
+  <script src="/vendor/prism/components/prism-bash.min.js"></script>
+  <script src="/vendor/prism/components/prism-shell-session.min.js"></script>
+  <script src="/vendor/prism/components/prism-powershell.min.js"></script>
+  <script src="/vendor/prism/components/prism-json.min.js"></script>
+  <script src="/vendor/prism/components/prism-yaml.min.js"></script>
+  <script src="/vendor/prism/components/prism-markdown.min.js"></script>
+  <script src="/vendor/prism/components/prism-sql.min.js"></script>
+  <script src="/vendor/prism/components/prism-go.min.js"></script>
+  <script src="/vendor/prism/components/prism-rust.min.js"></script>
+  <script src="/vendor/prism/components/prism-csharp.min.js"></script>
+  <script src="/vendor/prism/components/prism-java.min.js"></script>
+  <script src="/vendor/prism/components/prism-diff.min.js"></script>
   <script src="path-match.js"></script>
   <script src="api-client.js"></script>
+  <script src="markdown-highlight.js"></script>
 </head>
 <body>
   <div class="app">
