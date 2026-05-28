@@ -179,6 +179,28 @@
       return { status: res.status, body };
     }
 
+    // Project removal (issue #54).
+    async function getProjectRemovalSummary(projectKey) {
+      const res = await boundFetch(`/api/projects/${encodeURIComponent(projectKey)}/summary`);
+      const body = await res.json().catch(() => ({}));
+      return { status: res.status, body };
+    }
+
+    async function deleteProject(projectKey, opts) {
+      const removeWorktrees = !(opts && opts.removeWorktrees === false);
+      const qs = `?removeWorktrees=${removeWorktrees ? 'true' : 'false'}`;
+      const res = await boundFetch(
+        `/api/projects/${encodeURIComponent(projectKey)}${qs}`,
+        { method: 'DELETE' }
+      );
+      let body = null;
+      // 204 has no body. Anything else may carry an error JSON.
+      if (res.status !== 204) {
+        try { body = await res.json(); } catch { body = null; }
+      }
+      return { status: res.status, body };
+    }
+
     return {
       apiFetch,
       apiJson,
@@ -196,6 +218,8 @@
       createSessionWorktree,
       deleteSessionWorktree,
       listProjectWorktrees,
+      getProjectRemovalSummary,
+      deleteProject,
     };
   }
 
@@ -221,5 +245,7 @@
     createSessionWorktree: defaultClient ? defaultClient.createSessionWorktree : null,
     deleteSessionWorktree: defaultClient ? defaultClient.deleteSessionWorktree : null,
     listProjectWorktrees: defaultClient ? defaultClient.listProjectWorktrees : null,
+    getProjectRemovalSummary: defaultClient ? defaultClient.getProjectRemovalSummary : null,
+    deleteProject: defaultClient ? defaultClient.deleteProject : null,
   };
 });
