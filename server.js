@@ -14,6 +14,7 @@ const agentsRouter = require('./lib/routes/agents');
 const statsRouter = require('./lib/routes/stats');
 const pinsRouter = require('./lib/routes/pins');
 const settingsRouter = require('./lib/routes/settings');
+const { createWorktreesRouter } = require('./lib/routes/worktrees');
 const createEventsRouter = require('./lib/routes/events');
 const { createLaunchRouter } = require('./lib/launch');
 const { openSessionStoreDb } = require('./lib/store/db');
@@ -72,6 +73,24 @@ app.use('/api/agents', agentsRouter);
 app.use('/api/stats', statsRouter);
 app.use('/api/pins', pinsRouter);
 app.use('/api/settings', settingsRouter);
+// Worktree routes share the session DB reader with the launch routes so
+// session lookups never duplicate the cwd / workspace.yaml resolution
+// logic. Mounted at /api so the routes (/sessions/:id/worktree and
+// /projects/:projectKey/worktrees) live alongside their siblings.
+app.use('/api', createWorktreesRouter({
+  getSession: (id) => {
+    try {
+      const db = openSessionStoreDb();
+      const row = db.prepare('SELECT id, cwd FROM sessions WHERE id = ?').get(id);
+      db.close();
+      if (!row) return null;
+      const workspace = readWorkspaceYaml(row.id);
+      return { id: row.id, cwd: (workspace && workspace.cwd) || row.cwd };
+    } catch {
+      return null;
+    }
+  },
+}));
 // Serve the standalone settings page (loaded by app.js for topbar +
 // theme bootstrap, then settings.js for the schema-driven form).
 app.get('/settings', (req, res) => {
