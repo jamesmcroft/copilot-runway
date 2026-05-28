@@ -139,6 +139,46 @@
       }
     }
 
+    // Worktree endpoints (issue #44). All four mirror the route shape in
+    // lib/routes/worktrees.js. Read calls return { status, body } so the
+    // UI can branch on bound vs unbound without losing the HTTP status
+    // (404 vs 200 with bound:false both mean "no worktree").
+    async function getSessionWorktree(sessionId) {
+      const res = await boundFetch(`/api/sessions/${encodeURIComponent(sessionId)}/worktree`);
+      const body = await res.json().catch(() => ({}));
+      return { status: res.status, body };
+    }
+
+    async function createSessionWorktree(sessionId) {
+      const res = await boundFetch(`/api/sessions/${encodeURIComponent(sessionId)}/worktree`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+      const body = await res.json().catch(() => ({}));
+      return { status: res.status, body };
+    }
+
+    async function deleteSessionWorktree(sessionId, opts) {
+      const payload = {
+        force: !!(opts && opts.force),
+        deleteBranch: !!(opts && opts.deleteBranch),
+      };
+      const res = await boundFetch(`/api/sessions/${encodeURIComponent(sessionId)}/worktree`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const body = await res.json().catch(() => ({}));
+      return { status: res.status, body };
+    }
+
+    async function listProjectWorktrees(projectKey) {
+      const res = await boundFetch(`/api/projects/${encodeURIComponent(projectKey)}/worktrees`);
+      const body = await res.json().catch(() => ([]));
+      return { status: res.status, body };
+    }
+
     return {
       apiFetch,
       apiJson,
@@ -152,6 +192,10 @@
       putProjectSettings,
       getSettingsSchema,
       getResolvedSettings,
+      getSessionWorktree,
+      createSessionWorktree,
+      deleteSessionWorktree,
+      listProjectWorktrees,
     };
   }
 
@@ -173,5 +217,9 @@
     putProjectSettings: defaultClient ? defaultClient.putProjectSettings : null,
     getSettingsSchema: defaultClient ? defaultClient.getSettingsSchema : null,
     getResolvedSettings: defaultClient ? defaultClient.getResolvedSettings : null,
+    getSessionWorktree: defaultClient ? defaultClient.getSessionWorktree : null,
+    createSessionWorktree: defaultClient ? defaultClient.createSessionWorktree : null,
+    deleteSessionWorktree: defaultClient ? defaultClient.deleteSessionWorktree : null,
+    listProjectWorktrees: defaultClient ? defaultClient.listProjectWorktrees : null,
   };
 });

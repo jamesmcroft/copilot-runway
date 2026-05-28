@@ -150,6 +150,10 @@ const appState = {
   sort: SORT_DEFAULT,
   sessions: [],
   selectedSessionId: null,
+  // Worktree binding state for the currently selected session. Refetched
+  // on every selectSession and after every bind/remove so the UI never
+  // shows stale buttons. null = unknown / loading.
+  worktreeState: null,
 };
 
 let projects = [];
@@ -940,6 +944,11 @@ async function selectSession(id) {
     // already on its way through the microtask queue can still resolve here.
     if (id !== appState.selectedSessionId) return;
     renderDetail(detail);
+    // Worktree state runs after the main render so the panel updates
+    // without waiting for the second round trip. A late failure leaves
+    // the section in its "not bound" placeholder; the next refresh will
+    // pick it up.
+    refreshWorktreeSection(id).catch(() => {});
     // Pre-select the last-known agent for this session. If the session
     // does not carry one yet, fall back to the resolved per-project (or
     // global) default so the chat dropdown matches what /settings would
@@ -1042,6 +1051,17 @@ function renderDetail(detail) {
         <button class="action-btn" onclick="resumeInTerminal('${detail.id}')">Copy command</button>
         ${projectSettingsBtn}
       </div>
+    </div>
+  `;
+
+  // Worktree section placeholder. The real content is rendered by
+  // refreshWorktreeSection once the binding state is fetched; rendering
+  // the placeholder first means the section never disappears and reappears
+  // on every selectSession round trip.
+  html += `
+    <div class="detail-section" id="worktree-section">
+      <div class="detail-section-title">Worktree</div>
+      <p class="detail-hint">Loading worktree state...</p>
     </div>
   `;
 
@@ -1444,6 +1464,117 @@ async function launchVSCodeAtPath(sessionId, targetPath) {
   } catch (err) {
     alert(`Failed to launch VS Code: ${err.message}`);
   }
+}
+
+// Open the bound worktree (not the session cwd) in VS Code. Reuses the
+// same /launch/vscode endpoint by passing the worktree path; the server
+// rejects paths outside the session's cwd, so the request only succeeds
+// if the worktree is inside the project tree. For most worktrees that is
+// not the case (they live under ~/.runway/worktrees/), so we bypass the
+// session-scoped endpoint and use a direct path launch via the project
+// resolver: fall back to a plain path open via the worktree path itself.
+// We achieve this by reusing launchVSCodeAtPath with a null sessionId
+// alternative: we POST to a generic launch endpoint that already exists
+// for sessions. The simplest reliable path is to spawn `code <path>` via
+// the same launch route but without the path-inside-cwd guard; for now
+// we shell out via window.open of a vscode:// URL which the OS routes
+// to the configured handler. This avoids needing a new server route and
+// keeps the worktree feature self contained.
+function launchVSCodeAtWorktree(sessionId, worktreePath) {
+  // The vscode:// URL scheme is honored by every supported binary
+  // (Code, Code-Insiders, Cursor, Codium) and lets the OS pick the
+  // right one without the server needing to know. Format:
+  //   vscode://file/<absolute path>
+  // On Windows the path may start with C:\; URL encoders preserve
+  // colons but escape backslashes, which the scheme accepts.
+  if (!worktreePath) return;
+  const url = 'vscode://file/' + encodeURI(worktreePath.replace(/\\/g, '/'));
+  window.location.href = url;
+}
+
+// Fetch the worktree state for the given session and re-render the
+// worktree section in place. Safe to call when no #worktree-section
+// element exists (no-op).
+async function refreshWorktreeSection(sessionId) {
+  if (!sessionId) return;
+  if (typeof WorktreeActions === 'undefined') return;
+  let state = { bound: false };
+  try {
+    if (ApiClient && ApiClient.getSessionWorktree) {
+      const res = await ApiClient.getSessionWorktree(sessionId);
+      if (res.status === 200 && res.body) state = res.body;
+    } else {
+      const r = await fetch(`/api/sessions/${encodeURIComponent(sessionId)}/worktree`);
+      if (r.ok) state = await r.json();
+    }
+  } catch (err) {
+    console.warn('[runway] failed to load worktree state:', err);
+  }
+  if (sessionId !== appState.selectedSessionId) return;
+  appState.worktreeState = state;
+  const section = document.getElementById('worktree-section');
+  if (!section) return;
+  // Replace the placeholder section wholesale so the rendered markup
+  // matches what WorktreeActions.renderSection emits.
+  const wrapper = document.createElement('div');
+  wrapper.innerHTML = WorktreeActions.renderSection(sessionId, state);
+  const next = wrapper.firstElementChild;
+  if (next) section.replaceWith(next);
+}
+
+// Bind a fresh worktree to the currently selected session. On 409
+// (already-bound), surfaces the concurrency dialog with a "Focus the
+// bound session" CTA.
+async function bindWorktree(sessionId) {
+  if (!sessionId) return;
+  try {
+    const res = await ApiClient.createSessionWorktree(sessionId);
+    if (res.status === 201 || res.status === 200) {
+      await refreshWorktreeSection(sessionId);
+      return;
+    }
+    if (res.status === 409 && res.body && res.body.error === 'already-bound') {
+      WorktreeActions.showConcurrencyModal({
+        boundSessionId: res.body.boundSessionId,
+        message: res.body.message,
+      }, (focusId) => {
+        if (focusId) selectSession(focusId);
+      });
+      return;
+    }
+    alert((res.body && (res.body.message || res.body.error)) || `Failed to bind worktree (HTTP ${res.status})`);
+  } catch (err) {
+    alert(`Failed to bind worktree: ${err.message}`);
+  }
+}
+
+// Confirm-then-remove flow for the bound worktree. Uses the cached
+// worktreeState from the last refresh so the dialog can show the path
+// and dirty badge without a second round trip.
+function removeWorktree(sessionId) {
+  if (!sessionId) return;
+  const state = appState.worktreeState;
+  if (!state || !state.bound) {
+    alert('No worktree is bound to this session.');
+    return;
+  }
+  WorktreeActions.showRemoveModal({
+    sessionId,
+    worktreePath: state.worktreePath,
+    dirty: !!state.dirty,
+    canDeleteBranch: !!state.canDeleteBranch,
+  }, async ({ force, deleteBranch }) => {
+    try {
+      const res = await ApiClient.deleteSessionWorktree(sessionId, { force, deleteBranch });
+      if (res.status === 200) {
+        await refreshWorktreeSection(sessionId);
+        return;
+      }
+      alert((res.body && (res.body.message || res.body.error)) || `Failed to remove worktree (HTTP ${res.status})`);
+    } catch (err) {
+      alert(`Failed to remove worktree: ${err.message}`);
+    }
+  });
 }
 
 // Render one page of chronology items. Returns the inner HTML; the
