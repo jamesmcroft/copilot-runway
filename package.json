@@ -41,7 +41,8 @@
     "better-sqlite3": "^12.10.0",
     "express": "^5.2.1",
     "js-yaml": "^4.1.0",
-    "marked": "^18.0.4"
+    "marked": "^18.0.4",
+    "prismjs": "^1.30.0"
   },
   "devDependencies": {
     "c8": "^10.1.3"

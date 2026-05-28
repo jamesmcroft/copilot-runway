@@ -54,6 +54,12 @@ app.use(express.static(path.join(__dirname, 'public')));
 const markedLibDir = path.join(path.dirname(require.resolve('marked/package.json')), 'lib');
 app.use('/vendor', express.static(markedLibDir));
 
+// Prism is mounted the same way: resolve via require.resolve so it
+// survives npm hoisting under npx, and serve the package root so both
+// prism.js and the components/ folder are reachable from index.html.
+const prismRoot = path.dirname(require.resolve('prismjs/package.json'));
+app.use('/vendor/prism', express.static(prismRoot));
+
 // API routes
 app.use('/api/projects', projectsRouter);
 app.use('/api/sessions', sendRouter);

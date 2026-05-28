@@ -11,7 +11,7 @@ If you work across multiple repos with several Copilot CLI sessions running at o
 - **Project sidebar**: auto-discovers projects from the Copilot CLI data store; add custom folders on the fly
 - **Session list**: view all sessions for a project, filter by active/inactive, sorted by most recent activity
 - **Live status**: detects active sessions via PID lock files with process verification
-- **Conversation viewer**: read full session history with Markdown rendering (GFM, code blocks, tables)
+- **Conversation viewer**: read full session history with Markdown rendering (GFM, code blocks, tables) and syntax highlighting
 - **Send prompts**: send one-shot prompts to new or existing sessions, streamed back via SSE
 - **Resizable detail panel**: drag to resize, double-click to collapse, auto-expands on session select
 - **Agent selection**: choose custom agents for new or existing sessions; Runway remembers the last-used agent per session
@@ -106,6 +106,10 @@ Frames are encoded as `event: <type>\ndata: <json>\n\n` and a comment heartbeat 
 If the SSE connection drops, the dashboard reconnects with exponential backoff (1s, 2s, 4s, 8s, 16s, capped at 30s). After three consecutive failures, or if the browser does not support `EventSource`, the client falls back to a 30 second polling loop. The fallback is cancelled automatically the next time SSE reconnects and emits `ready`.
 
 The session detail panel updates live off the same channel. When the CLI commits a new turn or checkpoint, a coalesced `db.activity` event triggers a re-fetch of the selected session and the conversation re-renders within roughly two seconds, with no manual reload. Refreshes are de-duplicated so at most one request is in flight at a time, and a stale-result guard discards any response that arrives after you have switched to a different session. Scroll position is preserved across re-renders: if you were scrolled to the bottom, the panel follows the conversation to the new bottom; if you had scrolled up to read earlier history, your position is kept exactly where it was.
+
+### Syntax highlighting
+
+Fenced code blocks in the conversation view are highlighted with [Prism](https://prismjs.com/) (MIT). The eagerly loaded language set covers javascript, typescript, jsx, tsx, python, bash, shell-session, powershell, json, yaml, markdown, css, markup (HTML), sql, go, rust, csharp, java, and diff. Unknown or missing fence languages fall through to plain text, and blocks larger than 100,000 characters bypass the tokenizer so a pasted log dump cannot stall the renderer. Token colors are mapped to the existing theme variables so the same stylesheet works in both light and dark mode. Highlighting is render-time only via `Prism.highlight(string, grammar, language)`, never `Prism.highlightElement`, so user content cannot escape the tokenizer.
 
 ### Concurrency safety
 

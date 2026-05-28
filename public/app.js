@@ -40,6 +40,15 @@ applyTheme(getThemePreference());
 // Markdown setup
 marked.setOptions({ breaks: true, gfm: true });
 
+// Syntax highlighting for fenced code blocks. Prism is loaded eagerly
+// in index.html (core + the language list documented in the README).
+// Unknown languages and blocks larger than 100k chars fall through to
+// HTML-escaped plaintext, so the renderer is safe even with no Prism
+// available.
+if (typeof MarkdownHighlight !== 'undefined') {
+  MarkdownHighlight.attachMarkedHighlighter(marked);
+}
+
 // Detail panel resize
 const DETAIL_WIDTH_KEY = 'copilot-dashboard-detail-width';
 let detailWidth = parseInt(localStorage.getItem(DETAIL_WIDTH_KEY)) || 480;
