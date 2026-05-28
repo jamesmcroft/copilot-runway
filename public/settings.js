@@ -347,6 +347,28 @@
       renderProjectForm(schema, globalDoc, overrides);
     });
 
+    // Deep-link: ?project=<absolute-path> pre-selects the matching
+    // project so the "Project settings" action button on the session
+    // detail panel lands the user on the relevant override section.
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const requested = params.get('project');
+      if (requested) {
+        const match = projects.find(p => p.main_repo_path === requested);
+        if (match) {
+          projectSel.value = requested;
+          projectSel.dispatchEvent(new Event('change'));
+          const section = projectSel.closest('.settings-section');
+          if (section && section.scrollIntoView) {
+            section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }
+        } else {
+          summary(summaryNode,
+            `No project matches ?project=${requested}. Pick one from the list to edit overrides.`);
+        }
+      }
+    } catch { /* malformed URL: ignore */ }
+
     $('#save-global').addEventListener('click', async () => {
       clearFieldErrors('global');
       summary(summaryNode, '');

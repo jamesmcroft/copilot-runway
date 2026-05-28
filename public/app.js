@@ -969,6 +969,9 @@ function renderDetail(detail) {
   `;
 
   // Actions
+  const projectSettingsBtn = detail.cwd
+    ? `<button class="action-btn" onclick="openProjectSettings('${esc(detail.cwd)}')">Project settings</button>`
+    : '';
   html += `
     <div class="detail-section">
       <div class="detail-section-title">Actions</div>
@@ -976,11 +979,8 @@ function renderDetail(detail) {
         <button class="action-btn primary" onclick="launchVSCode('${detail.id}')">Open in VS Code</button>
         <button class="action-btn primary" onclick="launchTerminal('${detail.id}')">Open in Terminal</button>
         <button class="action-btn" onclick="resumeInTerminal('${detail.id}')">Copy command</button>
+        ${projectSettingsBtn}
       </div>
-      ${detail.cwd ? `
-      <div class="project-settings-mini" id="project-settings-mini" data-project-key="${esc(detail.cwd)}">
-        <div class="mini-row"><label>Loading project settings...</label></div>
-      </div>` : ''}
     </div>
   `;
 
@@ -1049,14 +1049,6 @@ function renderDetail(detail) {
   container.innerHTML = html;
   container.dataset.sessionId = detail.id;
 
-  // Hydrate the inline per-project settings section (issue #53) once the
-  // panel HTML is on the page. Fetch is async and tolerant of failures:
-  // a network or schema hiccup leaves the placeholder in place rather
-  // than blocking the rest of the detail render.
-  if (detail.cwd) {
-    hydrateProjectSettingsMini(detail.cwd).catch(() => {});
-  }
-
   if (!isSameSession) {
     container.scrollTop = container.scrollHeight;
   } else if (wasAtBottom) {
@@ -1077,89 +1069,17 @@ function selectFilter(status) {
   renderSessions();
 }
 
-// Per-project mini settings section in the session detail panel
-// (issue #53). Fetches the global schema + per-project overrides for
-// the session's cwd and renders quick-edit inputs for the most-used
-// overridable keys (defaults.agent, launchers.vscode). Fields outside
-// that minimal set link out to /settings via the "More settings"
-// anchor; the full picker-driven view lives on the dedicated page.
-//
-// All work is best-effort: any network or shape failure leaves the
-// existing placeholder in place. The detail panel never blocks on
-// settings.
-const MINI_KEYS = ['defaults.agent', 'launchers.vscode'];
-let miniSchemaCache = null;
-async function hydrateProjectSettingsMini(projectKey) {
-  const node = document.getElementById('project-settings-mini');
-  if (!node || node.dataset.projectKey !== projectKey) return;
-  if (!ApiClient || !ApiClient.getSettingsSchema) return;
-
-  if (!miniSchemaCache) {
-    const s = await ApiClient.getSettingsSchema();
-    if (s.status !== 200) return;
-    miniSchemaCache = s.body;
-  }
-  const [globalRes, projRes] = await Promise.all([
-    ApiClient.getSettings(),
-    ApiClient.getProjectSettings(projectKey),
-  ]);
-  if (globalRes.status !== 200) return;
-  const globalDoc = globalRes.body;
-  const overrides = (projRes.body && projRes.body.overrides) || {};
-
-  function getByPath(obj, key) {
-    let cur = obj;
-    for (const seg of key.split('.')) {
-      if (cur == null || typeof cur !== 'object') return undefined;
-      cur = cur[seg];
-    }
-    return cur;
-  }
-
-  let html = '';
-  for (const key of MINI_KEYS) {
-    const d = miniSchemaCache.descriptors.find(x => x.key === key);
-    if (!d) continue;
-    const overridden = getByPath(overrides, key) !== undefined;
-    const value = overridden ? getByPath(overrides, key) : getByPath(globalDoc.values, key);
-    let input;
-    if (d.type === 'enum' && Array.isArray(d.enum)) {
-      input = `<select data-mini-key="${esc(key)}">` + d.enum.map(opt =>
-        `<option value="${esc(opt)}"${opt === value ? ' selected' : ''}>${esc(opt)}</option>`
-      ).join('') + '</select>';
-    } else {
-      input = `<input type="text" data-mini-key="${esc(key)}" value="${esc(value == null ? '' : value)}">`;
-    }
-    html += `
-      <div class="mini-row">
-        <label>${esc(d.label)}</label>
-        ${input}
-        <span style="font-size:11px;color:var(--text-muted);">${overridden ? '(override)' : '(inherits)'}</span>
-      </div>
-    `;
-  }
-  html += '<div class="mini-row"><a class="mini-link" href="/settings">More settings &rarr;</a></div>';
-  node.innerHTML = html;
-
-  node.querySelectorAll('[data-mini-key]').forEach(input => {
-    input.addEventListener('change', async () => {
-      const key = input.getAttribute('data-mini-key');
-      const value = input.value;
-      const patch = {};
-      // Build a nested patch from the dot-key
-      const parts = key.split('.');
-      let cur = patch;
-      for (let i = 0; i < parts.length - 1; i++) { cur[parts[i]] = {}; cur = cur[parts[i]]; }
-      cur[parts[parts.length - 1]] = value;
-      const res = await ApiClient.patchProjectSettings(projectKey, patch);
-      if (res.status !== 200) {
-        console.warn('[runway] failed to save project setting:', res.body);
-        return;
-      }
-      // Re-render to refresh the (override) / (inherits) tag.
-      hydrateProjectSettingsMini(projectKey).catch(() => {});
-    });
-  });
+// Project settings entry-point (issue #53 iteration 2). The session
+// detail panel exposes a dedicated action button that deep-links to
+// /settings with the project pre-selected; the settings page reads the
+// `project` query parameter on boot and selects it in the project
+// picker. Kept on the global scope because the button uses inline
+// onclick attributes to match the other detail-panel actions.
+function openProjectSettings(projectKey) {
+  const url = projectKey
+    ? `/settings?project=${encodeURIComponent(projectKey)}`
+    : '/settings';
+  window.location.href = url;
 }
 
 function selectProjectByIndex(index) {
