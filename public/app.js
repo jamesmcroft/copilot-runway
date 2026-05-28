@@ -167,15 +167,33 @@ function persistFilters() {
   } catch {}
 }
 
-// Fetch helper
-async function api(path, options = {}) {
-  const res = await fetch(path, { ...options });
-  return res;
+// Fetch helpers come from the shared UMD client (public/api-client.js) so the
+// same `signal`-forwarding contract is used in both browser and tests.
+const api = ApiClient.apiFetch;
+const apiJson = ApiClient.apiJson;
+
+// In-flight detail fetches share a single AbortController so a session switch
+// cancels any pending work for the previously-selected session (issue #49).
+// Without this, a slow `/api/sessions/:id` response can land after the user
+// has moved on and overwrite the detail panel with stale content.
+let inFlightDetail = null;
+
+function abortInFlightDetail() {
+  if (inFlightDetail) {
+    inFlightDetail.abort();
+    inFlightDetail = null;
+  }
 }
 
-async function apiJson(path) {
-  const res = await api(path);
-  return res.json();
+function ensureDetailController() {
+  if (!inFlightDetail) {
+    inFlightDetail = new AbortController();
+  }
+  return inFlightDetail;
+}
+
+function isAbortError(err) {
+  return err && (err.name === 'AbortError' || err.code === 20);
 }
 
 // Init
@@ -354,13 +372,19 @@ async function refreshSelectedSession() {
     return;
   }
   const requestedSessionId = appState.selectedSessionId;
+  // Reuse the shared detail controller so a session switch aborts this
+  // refresh too (not just the initial selectSession fetch).
+  const controller = ensureDetailController();
   refreshInFlight = (async () => {
     try {
-      const detail = await apiJson(`/api/sessions/${requestedSessionId}`);
+      const detail = await apiJson(`/api/sessions/${requestedSessionId}`, { signal: controller.signal });
       // Stale-result guard: discard if the user switched sessions while we were fetching.
       if (appState.selectedSessionId !== requestedSessionId) return;
       renderDetail(detail);
-    } catch {}
+    } catch (err) {
+      if (isAbortError(err)) return;
+      console.error('[runway] Failed to refresh session detail:', err);
+    }
   })();
   try {
     await refreshInFlight;
@@ -677,6 +701,10 @@ function renderSessions() {
 
 // Session detail
 async function selectSession(id) {
+  // Invalidate any in-flight work for the previously-selected session so a
+  // late response cannot overwrite the panel after the user has moved on.
+  abortInFlightDetail();
+
   appState.selectedSessionId = id;
   renderSessions();
 
@@ -705,15 +733,35 @@ async function selectSession(id) {
   chatInput.placeholder = `Send a prompt to this session...`;
   if (agentBar && availableAgents.length > 0) agentBar.style.display = 'flex';
 
+  // Synchronous loading placeholder. Without this the panel keeps showing the
+  // previously-rendered session while the fetch is in flight, which looks
+  // identical to the "stuck on previous session" bug we are fixing.
+  const detailContainer = document.getElementById('detail-content');
+  if (detailContainer && detailContainer.dataset.sessionId !== id) {
+    detailContainer.dataset.sessionId = id;
+    detailContainer.innerHTML = '<div class="detail-empty">Loading session...</div>';
+  }
+
+  const controller = ensureDetailController();
   try {
-    const detail = await apiJson(`/api/sessions/${id}`);
+    const detail = await apiJson(`/api/sessions/${id}`, { signal: controller.signal });
+    // Belt-and-braces guard: even when the abort fires, a response that was
+    // already on its way through the microtask queue can still resolve here.
+    if (id !== appState.selectedSessionId) return;
     renderDetail(detail);
     // Pre-select the last-known agent for this session
     const chatAgent = document.getElementById('chat-agent');
     if (chatAgent) {
       chatAgent.value = detail.agent || '';
     }
-  } catch {}
+  } catch (err) {
+    if (isAbortError(err)) return;
+    console.error('[runway] Failed to load session detail:', err);
+  } finally {
+    if (inFlightDetail === controller) {
+      inFlightDetail = null;
+    }
+  }
 }
 
 function renderDetail(detail) {
@@ -831,23 +879,11 @@ function renderDetail(detail) {
     html += '</div>';
   }
 
-  // Files
-  if (detail.files && detail.files.length > 0) {
-    html += `
-      <div class="detail-section">
-        <div class="detail-section-title">Files Modified (${detail.files.length})</div>
-        <ul class="file-list">
-    `;
-    for (const f of detail.files) {
-      html += `
-        <li class="file-item">
-          <span class="badge ${f.tool_name}">${f.tool_name}</span>
-          ${esc(shortenFilePath(f.file_path))}
-        </li>
-      `;
-    }
-    html += '</ul></div>';
-  }
+  // Files modified summary previously rendered here as a flat list at the
+  // bottom of the detail panel. After issue #35 the chronology renderer
+  // shows file events inline with their producing turns, so this summary
+  // duplicated information already on screen. Removed in #49 along with
+  // the unbounded `files` query that backed it.
 
   // Preserve scroll position across live re-renders so the user is not
   // bounced to the top while reading earlier history. If the user was at
@@ -1129,11 +1165,23 @@ function renderChronologyItems(sessionId, items, sessionCwd) {
 // "Load older turns" click handler. Appends the next chronology page
 // without resetting scroll position. Avoids the snap-to-bottom logic in
 // renderDetail by mutating the existing DOM in place.
+//
+// Shares the inFlightDetail AbortController with selectSession so that a
+// session switch (or a rapid second click on the button) aborts any
+// pending load-more fetch. A post-await guard catches the microtask race
+// where a response slips through after the abort has fired (issue #49).
 async function loadMoreChronology(sessionId, cursor) {
   const btn = document.getElementById('chronology-load-more-btn');
   if (btn) { btn.disabled = true; btn.textContent = 'Loading...'; }
+  const controller = ensureDetailController();
   try {
-    const page = await apiJson(`/api/sessions/${sessionId}?cursor=${encodeURIComponent(cursor)}`);
+    const page = await apiJson(
+      `/api/sessions/${sessionId}?cursor=${encodeURIComponent(cursor)}`,
+      { signal: controller.signal },
+    );
+    // Belt-and-braces guard against the abort microtask race: a response
+    // that already resolved can still land here after the session switch.
+    if (sessionId !== appState.selectedSessionId) return;
     const list = document.getElementById('conversation-list');
     const wrapper = btn ? btn.parentElement : null;
     if (!list || !page.chronology) return;
@@ -1153,8 +1201,14 @@ async function loadMoreChronology(sessionId, cursor) {
       }
     }
   } catch (err) {
+    if (isAbortError(err)) return;
     if (btn) { btn.disabled = false; btn.textContent = 'Load older turns'; }
+    console.error('[runway] Failed to load more turns:', err);
     alert(`Failed to load more turns: ${err.message}`);
+  } finally {
+    if (inFlightDetail === controller) {
+      inFlightDetail = null;
+    }
   }
 }
 

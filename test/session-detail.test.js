@@ -142,6 +142,26 @@ fs.writeFileSync(path.join(launchCwd, 'inside.js'), '// ok\n');
 insertSession.run('launch-target', launchCwd, 'octo/repo', 'main', 'Launch target',
   '2025-01-01T00:00:00Z', '2025-01-01T00:00:00Z', 'cli');
 
+// i) large session: 500 turns with chunky assistant responses + 200 file
+// events. Used by the issue #49 regression test to prove that
+// GET /api/sessions/:id no longer iterates the full turns table on every
+// request. The synthetic responses are 4 KB each so the legacy
+// unbounded SELECT would actually feel the difference.
+const LARGE_TURN_COUNT = 500;
+const LARGE_FILE_COUNT = 200;
+const largeBlob = 'x'.repeat(4096);
+insertSession.run('large-session', REPO_CWD, 'octo/repo', 'main', 'Large session',
+  '2025-01-01T00:00:00Z', '2025-01-01T00:00:00Z', 'cli');
+const tx = seedDb.transaction(() => {
+  for (let i = 0; i < LARGE_TURN_COUNT; i++) {
+    insertTurn.run('large-session', i, `q${i}`, `${largeBlob}-${i}`, '2025-01-01T00:00:00Z');
+  }
+  for (let i = 0; i < LARGE_FILE_COUNT; i++) {
+    insertFile.run('large-session', `/tmp/repo/large/f${i}.js`, 'edit', i, '2025-01-01T00:00:00Z');
+  }
+});
+tx();
+
 seedDb.close();
 
 // Build app: mount the sessions router and a launch router with a
@@ -299,13 +319,44 @@ test('NULL turn_index files land at end of final page only', async () => {
   assert.equal(last.file_path, '/tmp/repo/orphan.js');
 });
 
-test('legacy turns/checkpoints/files fields stay populated for backward compat', async () => {
+test('legacy turns and files fields are removed from the response (issue #49)', async () => {
   const d = await getDetail('multi-file');
-  assert.ok(Array.isArray(d.turns));
-  assert.ok(Array.isArray(d.checkpoints));
-  assert.ok(Array.isArray(d.files));
-  assert.equal(d.turns.length, 1);
-  assert.equal(d.files.length, 3);
+  assert.equal(d.turns, undefined, 'turns array must not be returned');
+  assert.equal(d.files, undefined, 'files array must not be returned');
+  assert.ok(Array.isArray(d.checkpoints), 'checkpoints stays for the renderer');
+  assert.ok(Array.isArray(d.chronology), 'chronology is the sole conversation feed');
+  // The chronology still surfaces the same file events inline.
+  const fileItems = d.chronology.filter(i => i.kind === 'file');
+  assert.equal(fileItems.length, 3);
+});
+
+test('large session responds quickly with bounded payload (issue #49)', async () => {
+  // HAR evidence on the original bug showed a single /api/sessions/:id
+  // call hanging the Node event loop for ~70 seconds because the legacy
+  // handler issued an unbounded SELECT over every turn row. With those
+  // queries removed, only the cursor-paged chronology runs and the
+  // response must come back in well under a second even on a slow CI
+  // runner. The threshold below is deliberately generous (still ~35x
+  // tighter than the bug) so it catches an order-of-magnitude regression
+  // without flaking on Windows.
+  const TIME_BUDGET_MS = 2000;
+  const start = process.hrtime.bigint();
+  const d = await getDetail('large-session', '?limit=50');
+  const elapsedMs = Number(process.hrtime.bigint() - start) / 1e6;
+
+  assert.equal(d.turns, undefined);
+  assert.equal(d.files, undefined);
+  assert.ok(Array.isArray(d.chronology));
+  // Page size cap holds: 50 turns + up to 50 attributed files.
+  const turnItems = d.chronology.filter(i => i.kind === 'turn');
+  assert.equal(turnItems.length, 50);
+  assert.equal(d.has_more, true);
+  assert.equal(d.next_cursor, 49);
+
+  assert.ok(
+    elapsedMs < TIME_BUDGET_MS,
+    `GET /api/sessions/:id took ${elapsedMs.toFixed(0)}ms, expected < ${TIME_BUDGET_MS}ms`,
+  );
 });
 
 // --- Per-file VS Code launch (Option A) ----------------------------------
