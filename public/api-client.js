@@ -122,6 +122,23 @@
       return { status: res.status, body };
     }
 
+    // Resolved view of every setting for the optional project context.
+    // Returns the parsed `{ values }` document directly so callers can
+    // read `resolved.defaults.agent` without status-checking on the
+    // happy path. On any error the function returns an empty values
+    // object so dropdown defaults degrade gracefully.
+    async function getResolvedSettings(projectKey) {
+      const qs = projectKey ? `?project=${encodeURIComponent(projectKey)}` : '';
+      try {
+        const res = await boundFetch(`/api/settings/resolved${qs}`);
+        if (!res.ok) return { values: {} };
+        const body = await res.json().catch(() => ({}));
+        return (body && typeof body === 'object') ? body : { values: {} };
+      } catch {
+        return { values: {} };
+      }
+    }
+
     return {
       apiFetch,
       apiJson,
@@ -134,6 +151,7 @@
       patchProjectSettings,
       putProjectSettings,
       getSettingsSchema,
+      getResolvedSettings,
     };
   }
 
@@ -154,5 +172,6 @@
     patchProjectSettings: defaultClient ? defaultClient.patchProjectSettings : null,
     putProjectSettings: defaultClient ? defaultClient.putProjectSettings : null,
     getSettingsSchema: defaultClient ? defaultClient.getSettingsSchema : null,
+    getResolvedSettings: defaultClient ? defaultClient.getResolvedSettings : null,
   };
 });

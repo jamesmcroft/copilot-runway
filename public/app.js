@@ -556,6 +556,51 @@ function populateAgentSelects() {
   }
 }
 
+// Resolved settings cache (issue #53 iteration 3). Keyed by project
+// path (empty string for the global-only view). Values are the in-flight
+// promise so concurrent callers share one round-trip. The cache lives
+// for the page lifetime; settings edits flow through /settings on a
+// full page reload, so no invalidation hook is needed today.
+const resolvedSettingsCache = new Map();
+let resolvedAgentMissingWarned = false;
+
+async function getResolvedSettingsFor(projectKey) {
+  const cacheKey = projectKey || '';
+  if (resolvedSettingsCache.has(cacheKey)) {
+    return resolvedSettingsCache.get(cacheKey);
+  }
+  const promise = (async () => {
+    if (!ApiClient.getResolvedSettings) return {};
+    const doc = await ApiClient.getResolvedSettings(projectKey || null);
+    return (doc && doc.values && typeof doc.values === 'object') ? doc.values : {};
+  })();
+  resolvedSettingsCache.set(cacheKey, promise);
+  return promise;
+}
+
+// Pre-select the resolved `defaults.agent` in the given agent <select>.
+// Falls back to the static default (whatever value the select already
+// holds) when the resolved value is empty or not present in the
+// dropdown options, e.g. the agent was removed from agents.json after
+// being saved. The missing-option warning is logged once per page so
+// users are not spammed each time the dropdown opens.
+async function applyResolvedAgentToSelect(selectId, projectKey) {
+  const sel = document.getElementById(selectId);
+  if (!sel) return;
+  const values = await getResolvedSettingsFor(projectKey);
+  const agent = values && values.defaults && values.defaults.agent;
+  if (!agent) return;
+  const hasOption = Array.from(sel.options).some(o => o.value === agent);
+  if (!hasOption) {
+    if (!resolvedAgentMissingWarned) {
+      console.warn(`[runway] resolved defaults.agent "${agent}" is not in the agent list; falling back to static default`);
+      resolvedAgentMissingWarned = true;
+    }
+    return;
+  }
+  sel.value = agent;
+}
+
 // Projects
 async function loadProjects() {
   try {
@@ -895,10 +940,18 @@ async function selectSession(id) {
     // already on its way through the microtask queue can still resolve here.
     if (id !== appState.selectedSessionId) return;
     renderDetail(detail);
-    // Pre-select the last-known agent for this session
+    // Pre-select the last-known agent for this session. If the session
+    // does not carry one yet, fall back to the resolved per-project (or
+    // global) default so the chat dropdown matches what /settings would
+    // apply.
     const chatAgent = document.getElementById('chat-agent');
     if (chatAgent) {
-      chatAgent.value = detail.agent || '';
+      if (detail.agent) {
+        chatAgent.value = detail.agent;
+      } else {
+        chatAgent.value = '';
+        applyResolvedAgentToSelect('chat-agent', detail.cwd || null);
+      }
     }
   } catch (err) {
     if (isAbortError(err)) return;
@@ -1244,6 +1297,11 @@ function toggleNewSession() {
     const cwdInput = document.getElementById('new-session-cwd');
     if (appState.filters.project) cwdInput.value = appState.filters.project;
     document.getElementById('new-session-name').focus();
+    // Fire-and-forget: the dropdown opens with the static default and
+    // the resolved value snaps in once the round-trip lands. Cached
+    // after the first call so subsequent opens for the same project
+    // are synchronous in practice.
+    applyResolvedAgentToSelect('new-session-agent', appState.filters.project || null);
   }
 }
 

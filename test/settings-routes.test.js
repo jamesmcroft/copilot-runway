@@ -199,6 +199,55 @@ test('GET on unknown project returns empty overrides, not 404', async () => {
   }
 });
 
+test('GET /api/settings/resolved without project returns global view', async () => {
+  reset();
+  const server = await buildServer();
+  try {
+    await request(server, 'PATCH', '/api/settings', { defaults: { agent: 'global-default' } });
+    const res = await request(server, 'GET', '/api/settings/resolved');
+    assert.equal(res.status, 200);
+    assert.equal(res.body.values.defaults.agent, 'global-default');
+    assert.equal(res.body.values.launchers.vscode, 'code');
+  } finally {
+    server.close();
+  }
+});
+
+test('GET /api/settings/resolved?project= applies per-project override', async () => {
+  reset();
+  const server = await buildServer();
+  try {
+    const projectPath = '/abs/path/sample-project';
+    const key = encodeURIComponent(projectPath);
+    await request(server, 'PATCH', '/api/settings', { defaults: { agent: 'global-default' } });
+    await request(server, 'PATCH', `/api/settings/projects/${key}`, {
+      defaults: { agent: 'project-default' },
+    });
+    const res = await request(server, 'GET', `/api/settings/resolved?project=${key}`);
+    assert.equal(res.status, 200);
+    // Per-project override wins for `defaults.agent`.
+    assert.equal(res.body.values.defaults.agent, 'project-default');
+    // launchers.vscode has no override, so the global default still applies.
+    assert.equal(res.body.values.launchers.vscode, 'code');
+  } finally {
+    server.close();
+  }
+});
+
+test('GET /api/settings/resolved?project= falls back to global when no override', async () => {
+  reset();
+  const server = await buildServer();
+  try {
+    await request(server, 'PATCH', '/api/settings', { defaults: { agent: 'global-default' } });
+    const key = encodeURIComponent('/abs/path/no-override');
+    const res = await request(server, 'GET', `/api/settings/resolved?project=${key}`);
+    assert.equal(res.status, 200);
+    assert.equal(res.body.values.defaults.agent, 'global-default');
+  } finally {
+    server.close();
+  }
+});
+
 test('newer schema_version produces 409 on PATCH (read-only mode)', async () => {
   reset();
   fs.writeFileSync(SETTINGS_FILE, JSON.stringify({
