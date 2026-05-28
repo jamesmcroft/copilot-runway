@@ -54,6 +54,13 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
   background: var(--bg-primary);
   color: var(--text-primary);
+}
+
+/* Dashboard shell pins the viewport so the three-pane grid stays put
+ * and the inner panes own their own scroll. Other pages (notably
+ * /settings) opt out by omitting .app-shell so the document scrolls
+ * normally. */
+body.app-shell {
   height: 100vh;
   overflow: hidden;
 }
