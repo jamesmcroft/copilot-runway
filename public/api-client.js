@@ -33,7 +33,34 @@
       return res.json();
     }
 
-    return { apiFetch, apiJson };
+    async function searchSessions(q, options) {
+      const opts = options || {};
+      const params = new URLSearchParams();
+      params.set('q', q);
+      if (opts.limit != null) params.set('limit', String(opts.limit));
+      if (opts.cursor != null) params.set('cursor', String(opts.cursor));
+      const fetchOpts = {};
+      if (opts.signal) fetchOpts.signal = opts.signal;
+      const res = await boundFetch(`/api/sessions/search?${params.toString()}`, fetchOpts);
+      const body = await res.json().catch(() => ({}));
+      return { status: res.status, body };
+    }
+
+    async function searchStatus(options) {
+      const opts = options || {};
+      const fetchOpts = {};
+      if (opts.signal) fetchOpts.signal = opts.signal;
+      try {
+        const res = await boundFetch('/api/sessions/search/status', fetchOpts);
+        if (!res.ok) return { available: false };
+        const body = await res.json();
+        return { available: !!body.available };
+      } catch {
+        return { available: false };
+      }
+    }
+
+    return { apiFetch, apiJson, searchSessions, searchStatus };
   }
 
   // Default instance uses the ambient fetch. Tests can call createClient with
@@ -44,5 +71,7 @@
     createClient,
     apiFetch: defaultClient ? defaultClient.apiFetch : null,
     apiJson: defaultClient ? defaultClient.apiJson : null,
+    searchSessions: defaultClient ? defaultClient.searchSessions : null,
+    searchStatus: defaultClient ? defaultClient.searchStatus : null,
   };
 });

@@ -331,6 +331,49 @@ body {
   color: var(--accent);
 }
 
+.content-search-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: 20px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s;
+  user-select: none;
+}
+
+.content-search-toggle:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.content-search-toggle input {
+  margin: 0;
+  cursor: pointer;
+}
+
+.content-search-toggle:has(input:checked) {
+  background: var(--accent-subtle);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.content-search-toggle[hidden] {
+  display: none;
+}
+
+.content-search-hint {
+  position: absolute;
+  left: -9999px;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+}
+
 /* All Sessions filter */
 .filter-item {
   padding: 10px 16px;
@@ -500,6 +543,26 @@ body {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.session-content-snippet {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.4;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.session-content-snippet mark {
+  background: var(--accent-subtle);
+  color: var(--accent);
+  padding: 0 2px;
+  border-radius: 3px;
 }
 
 .session-card-meta {
