@@ -60,7 +60,81 @@
       }
     }
 
-    return { apiFetch, apiJson, searchSessions, searchStatus };
+    // Settings endpoints. Mirrors the route shape in lib/routes/settings.js.
+    // Read paths return the parsed JSON document directly so callers can
+    // treat them as plain data. Write paths return either { values } on
+    // success (HTTP 200) or { error, errors } on validation failure.
+    async function getSettings() {
+      const res = await boundFetch('/api/settings');
+      const body = await res.json().catch(() => ({}));
+      return { status: res.status, body };
+    }
+
+    async function patchSettings(patch) {
+      const res = await boundFetch('/api/settings', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(patch || {}),
+      });
+      const body = await res.json().catch(() => ({}));
+      return { status: res.status, body };
+    }
+
+    async function putSettings(doc) {
+      const res = await boundFetch('/api/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(doc || {}),
+      });
+      const body = await res.json().catch(() => ({}));
+      return { status: res.status, body };
+    }
+
+    async function getProjectSettings(projectKey) {
+      const res = await boundFetch(`/api/settings/projects/${encodeURIComponent(projectKey)}`);
+      const body = await res.json().catch(() => ({}));
+      return { status: res.status, body };
+    }
+
+    async function patchProjectSettings(projectKey, patch) {
+      const res = await boundFetch(`/api/settings/projects/${encodeURIComponent(projectKey)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(patch || {}),
+      });
+      const body = await res.json().catch(() => ({}));
+      return { status: res.status, body };
+    }
+
+    async function putProjectSettings(projectKey, doc) {
+      const res = await boundFetch(`/api/settings/projects/${encodeURIComponent(projectKey)}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(doc || {}),
+      });
+      const body = await res.json().catch(() => ({}));
+      return { status: res.status, body };
+    }
+
+    async function getSettingsSchema() {
+      const res = await boundFetch('/api/settings/schema');
+      const body = await res.json().catch(() => ({}));
+      return { status: res.status, body };
+    }
+
+    return {
+      apiFetch,
+      apiJson,
+      searchSessions,
+      searchStatus,
+      getSettings,
+      patchSettings,
+      putSettings,
+      getProjectSettings,
+      patchProjectSettings,
+      putProjectSettings,
+      getSettingsSchema,
+    };
   }
 
   // Default instance uses the ambient fetch. Tests can call createClient with
@@ -73,5 +147,12 @@
     apiJson: defaultClient ? defaultClient.apiJson : null,
     searchSessions: defaultClient ? defaultClient.searchSessions : null,
     searchStatus: defaultClient ? defaultClient.searchStatus : null,
+    getSettings: defaultClient ? defaultClient.getSettings : null,
+    patchSettings: defaultClient ? defaultClient.patchSettings : null,
+    putSettings: defaultClient ? defaultClient.putSettings : null,
+    getProjectSettings: defaultClient ? defaultClient.getProjectSettings : null,
+    patchProjectSettings: defaultClient ? defaultClient.patchProjectSettings : null,
+    putProjectSettings: defaultClient ? defaultClient.putProjectSettings : null,
+    getSettingsSchema: defaultClient ? defaultClient.getSettingsSchema : null,
   };
 });

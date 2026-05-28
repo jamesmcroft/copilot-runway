@@ -1481,3 +1481,30 @@ a.chronology-file-path:hover {
   .status-filter-group { width: 100%; justify-content: space-between; }
   .status-filter-btn { flex: 1 1 auto; text-align: center; }
 }
+
+/* Settings gear icon in the header (issue #53). Sits next to the theme
+   switcher and is also reachable via the Ctrl+, / Cmd+, shortcut. */
+.settings-gear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  margin-left: 8px;
+  border-radius: 6px;
+  color: var(--text-secondary);
+  text-decoration: none;
+  font-size: 18px;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+.settings-gear:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+.sr-only {
+  position: absolute;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0,0,0,0);
+  white-space: nowrap; border: 0;
+}

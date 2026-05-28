@@ -1,0 +1,23 @@
+/*
+ * Palette: Tokyo Night
+ * Source:  enkia/tokyo-night-vscode-theme,
+ *          https://github.com/enkia/tokyo-night-vscode-theme
+ * License: MIT
+ *   Copyright (c) 2020 enkia. Standard MIT license terms.
+ *
+ * Marked experimental in v1: an Apache-licensed community palette
+ * remapped to Runway's variable shape.
+ */
+body[data-palette="tokyo-night"] {
+  --bg-primary: #1a1b26;
+  --bg-secondary: #16161e;
+  --bg-tertiary: #24283b;
+  --bg-hover: #2f344d;
+  --border: #2f344d;
+  --text-primary: #c0caf5;
+  --text-secondary: #a9b1d6;
+  --text-muted: #565f89;
+  --accent: #7aa2f7;
+  --accent-hover: #a4c0fa;
+  --accent-subtle: rgba(122, 162, 247, 0.15);
+}

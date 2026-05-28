@@ -1,0 +1,23 @@
+/*
+ * Palette: Catppuccin (Mocha)
+ * Source:  catppuccin/catppuccin, https://github.com/catppuccin/catppuccin
+ * License: MIT
+ *   Copyright (c) 2021-present Catppuccin Org and contributors.
+ *   Standard MIT license terms.
+ *
+ * Marked experimental in v1. Maps the Mocha flavour to Runway's
+ * variable shape.
+ */
+body[data-palette="catppuccin"] {
+  --bg-primary: #1e1e2e;
+  --bg-secondary: #181825;
+  --bg-tertiary: #313244;
+  --bg-hover: #45475a;
+  --border: #313244;
+  --text-primary: #cdd6f4;
+  --text-secondary: #bac2de;
+  --text-muted: #7f849c;
+  --accent: #cba6f7;
+  --accent-hover: #dec2fc;
+  --accent-subtle: rgba(203, 166, 247, 0.15);
+}

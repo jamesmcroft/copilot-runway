@@ -1,0 +1,22 @@
+/*
+ * Palette: Material (Dark)
+ *
+ * Inspired by Material Design dark surfaces. Color tokens are derived
+ * from the public Material Design colour system documentation
+ * (https://m3.material.io/styles/color), which is published by Google
+ * under Apache 2.0 / CC BY. This palette only uses individual colour
+ * values, no proprietary assets.
+ */
+body[data-palette="material"] {
+  --bg-primary: #121212;
+  --bg-secondary: #1e1e1e;
+  --bg-tertiary: #2a2a2a;
+  --bg-hover: #353535;
+  --border: #2a2a2a;
+  --text-primary: #ffffff;
+  --text-secondary: #b3b3b3;
+  --text-muted: #757575;
+  --accent: #bb86fc;
+  --accent-hover: #d0a8ff;
+  --accent-subtle: rgba(187, 134, 252, 0.16);
+}

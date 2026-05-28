@@ -1,0 +1,23 @@
+/*
+ * Palette: Rose Pine (Main)
+ * Source:  rose-pine/palette, https://github.com/rose-pine/palette
+ * License: MIT
+ *   Copyright (c) 2021 Rose Pine. Standard MIT license terms.
+ *
+ * Marked experimental in v1. The palette id uses ASCII "rose-pine"
+ * (no accent on the e) to keep URLs and file names portable; the human
+ * label includes the accent in the UI.
+ */
+body[data-palette="rose-pine"] {
+  --bg-primary: #191724;
+  --bg-secondary: #1f1d2e;
+  --bg-tertiary: #26233a;
+  --bg-hover: #403d52;
+  --border: #26233a;
+  --text-primary: #e0def4;
+  --text-secondary: #908caa;
+  --text-muted: #6e6a86;
+  --accent: #c4a7e7;
+  --accent-hover: #d6c1ee;
+  --accent-subtle: rgba(196, 167, 231, 0.16);
+}

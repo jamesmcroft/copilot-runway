@@ -1,0 +1,9 @@
+/*
+ * Palette: Default Light
+ *
+ * The default Runway light palette lives in styles.css under
+ * [data-theme="light"]. Selecting "Default Light" maps to
+ * data-palette="default-light" + data-theme="light" and lets the base
+ * stylesheet take over.
+ */
+body[data-palette="default-light"] { /* inherits base light variables */ }
