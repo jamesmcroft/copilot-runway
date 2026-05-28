@@ -121,6 +121,38 @@
   border-color: var(--accent);
 }
 
+/* Agent picker (issue #53 iteration 2). Native combobox built from
+ * <input list> + <datalist>; the wrapper just constrains width and
+ * stacks the validation warning under the input. */
+.agent-picker {
+  display: block;
+  width: 100%;
+  max-width: 420px;
+}
+
+.agent-picker .agent-picker-input {
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 8px 10px;
+  font-size: 13px;
+  font-family: inherit;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.agent-picker .agent-picker-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.agent-picker .agent-picker-warning {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--yellow);
+}
+
 .settings-field .field-error {
   font-size: 12px;
   color: #d23030;

@@ -81,6 +81,16 @@
 
   function fieldInput(descriptor, value, idPrefix) {
     const id = `${idPrefix}-${descriptor.key.replace(/\./g, '-')}`;
+    // Default agent gets a typeahead combobox backed by /api/agents.
+    // The host div is mounted after render; collectGlobalPatch /
+    // collectProjectOverrides keep working because the inner input
+    // still carries data-key.
+    if (descriptor.key === 'defaults.agent') {
+      return `<div class="agent-picker-host"
+        data-agent-host-key="${escapeHtml(descriptor.key)}"
+        data-agent-host-id="${id}"
+        data-agent-host-value="${escapeHtml(value == null ? '' : value)}"></div>`;
+    }
     if (descriptor.type === 'enum' && Array.isArray(descriptor.enum)) {
       const opts = descriptor.enum.map(o =>
         `<option value="${escapeHtml(o)}"${o === value ? ' selected' : ''}>${escapeHtml(o)}</option>`
@@ -89,6 +99,42 @@
     }
     // string / path: a plain text input
     return `<input id="${id}" type="text" data-key="${escapeHtml(descriptor.key)}" value="${escapeHtml(value == null ? '' : value)}">`;
+  }
+
+  // Walk newly-rendered fields and mount an agent picker into every
+  // .agent-picker-host placeholder. Shares the cached agent list so
+  // we only hit /api/agents once per page load. Synchronous so callers
+  // that rely on data-key lookups (override toggles) see the input
+  // element immediately. boot() pre-warms the cache before rendering.
+  let cachedAgents = null;
+  async function ensureAgentsLoaded() {
+    if (Array.isArray(cachedAgents)) return cachedAgents;
+    try {
+      const res = await fetch('/api/agents');
+      cachedAgents = res.ok ? await res.json() : [];
+    } catch {
+      cachedAgents = [];
+    }
+    return cachedAgents;
+  }
+
+  function mountAgentPickers(scope) {
+    const hosts = (scope || document).querySelectorAll('.agent-picker-host');
+    if (!hosts.length || !window.RunwayAgentPicker) return;
+    const agents = Array.isArray(cachedAgents) ? cachedAgents : [];
+    hosts.forEach(host => {
+      if (host.dataset.mounted === '1') return;
+      const key = host.getAttribute('data-agent-host-key');
+      const id = host.getAttribute('data-agent-host-id');
+      const initial = host.getAttribute('data-agent-host-value') || '';
+      window.RunwayAgentPicker.create({
+        host,
+        initialValue: initial,
+        agents,
+        inputAttrs: { id, 'data-key': key },
+      });
+      host.dataset.mounted = '1';
+    });
   }
 
   function renderGlobalForm(schema, doc) {
@@ -106,6 +152,7 @@
       `;
       root.appendChild(wrap);
     }
+    mountAgentPickers(root);
   }
 
   function renderProjectForm(schema, globalDoc, overrides) {
@@ -133,13 +180,17 @@
       `;
       root.appendChild(wrap);
     }
+    // Mount any agent picker hosts BEFORE wiring override toggles so
+    // the toggle handler's [data-key="..."] lookup finds the inner
+    // input element rendered by the picker.
+    mountAgentPickers(root);
     // Bind enable/disable based on override checkbox state.
     root.querySelectorAll('[data-override-toggle]').forEach(cb => {
       const key = cb.getAttribute('data-override-toggle');
       const input = root.querySelector(`[data-key="${key}"]`);
       const pill = root.querySelector(`[data-pill-key="${key}"]`);
       function apply() {
-        input.disabled = !cb.checked;
+        if (input) input.disabled = !cb.checked;
         pill.className = cb.checked ? 'override-pill' : 'inherits-pill';
         pill.textContent = cb.checked ? 'overridden' : 'inherits global';
       }
@@ -265,6 +316,10 @@
       return;
     }
     globalDoc = globalRes.body;
+
+    // Pre-warm the agent list before the first render so the agent
+    // picker mounts synchronously with options already populated.
+    await ensureAgentsLoaded();
 
     renderGlobalForm(schema, globalDoc);
 
