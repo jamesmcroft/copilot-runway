@@ -8,6 +8,7 @@ require('./lib/paths');
 
 const projectsRouter = require('./lib/routes/projects');
 const sessionsRouter = require('./lib/routes/sessions');
+const searchRouter = require('./lib/routes/search');
 const sendRouter = require('./lib/routes/send');
 const agentsRouter = require('./lib/routes/agents');
 const statsRouter = require('./lib/routes/stats');
@@ -56,6 +57,9 @@ app.use('/vendor', express.static(markedLibDir));
 // API routes
 app.use('/api/projects', projectsRouter);
 app.use('/api/sessions', sendRouter);
+// Search router must mount before sessionsRouter so /search is not
+// captured by the /:id route in sessionsRouter.
+app.use('/api/sessions', searchRouter);
 app.use('/api/sessions', sessionsRouter);
 app.use('/api/agents', agentsRouter);
 app.use('/api/stats', statsRouter);
