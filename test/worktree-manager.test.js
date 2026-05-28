@@ -194,7 +194,8 @@ test('list reports worktrees enriched with bound session', () => {
   const items = manager.list({ projectPath: repo });
   const found = items.find(i => i.worktreePath === wt.worktreePath
     || path.resolve(i.worktreePath) === path.resolve(wt.worktreePath));
-  assert.ok(found, `expected to find created worktree in list; got ${JSON.stringify(items)}`);
+  const allBindings = bindings.list();
+  assert.ok(found, `expected to find created worktree in list;\n  wt.worktreePath=${JSON.stringify(wt.worktreePath)}\n  items=${JSON.stringify(items)}\n  bindings=${JSON.stringify(allBindings)}`);
   assert.equal(found.sessionId, 'list1234-rest');
   manager.remove({ worktreePath: wt.worktreePath, force: true });
 });
