@@ -20,4 +20,13 @@ body[data-palette="tokyo-night"] {
   --accent: #7aa2f7;
   --accent-hover: #a4c0fa;
   --accent-subtle: rgba(122, 162, 247, 0.15);
+  --green: #9ece6a;
+  --green-subtle: rgba(158, 206, 106, 0.15);
+  --yellow: #e0af68;
+  --red: #f7768e;
+  --red-subtle: rgba(247, 118, 142, 0.15);
+  --purple: #bb9af7;
+  --shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+  --scrollbar-thumb: #2f344d;
+  --scrollbar-hover: #565f89;
 }

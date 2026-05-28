@@ -16,4 +16,13 @@ body[data-palette="high-contrast-light"] {
   --accent: #0033cc;
   --accent-hover: #0022aa;
   --accent-subtle: rgba(0, 51, 204, 0.12);
+  --green: #006b2c;
+  --green-subtle: rgba(0, 107, 44, 0.12);
+  --yellow: #8a5a00;
+  --red: #b00020;
+  --red-subtle: rgba(176, 0, 32, 0.12);
+  --purple: #6a1b9a;
+  --shadow: 0 0 0 1px #000000;
+  --scrollbar-thumb: #000000;
+  --scrollbar-hover: #4a4a4a;
 }

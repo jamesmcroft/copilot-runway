@@ -18,4 +18,13 @@ body[data-palette="monokai-inspired"] {
   --accent: #a6e22e;
   --accent-hover: #b6f24a;
   --accent-subtle: rgba(166, 226, 46, 0.12);
+  --green: #a6e22e;
+  --green-subtle: rgba(166, 226, 46, 0.15);
+  --yellow: #e6db74;
+  --red: #f92672;
+  --red-subtle: rgba(249, 38, 114, 0.15);
+  --purple: #ae81ff;
+  --shadow: 0 1px 3px rgba(0, 0, 0, 0.45);
+  --scrollbar-thumb: #49483e;
+  --scrollbar-hover: #75715e;
 }

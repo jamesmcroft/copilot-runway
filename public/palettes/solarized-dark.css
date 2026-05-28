@@ -23,4 +23,13 @@ body[data-palette="solarized-dark"] {
   --accent: #268bd2;
   --accent-hover: #6cb6e6;
   --accent-subtle: rgba(38, 139, 210, 0.15);
+  --green: #859900;
+  --green-subtle: rgba(133, 153, 0, 0.15);
+  --yellow: #b58900;
+  --red: #dc322f;
+  --red-subtle: rgba(220, 50, 47, 0.15);
+  --purple: #6c71c4;
+  --shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+  --scrollbar-thumb: #14586b;
+  --scrollbar-hover: #586e75;
 }

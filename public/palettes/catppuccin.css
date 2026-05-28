@@ -20,4 +20,13 @@ body[data-palette="catppuccin"] {
   --accent: #cba6f7;
   --accent-hover: #dec2fc;
   --accent-subtle: rgba(203, 166, 247, 0.15);
+  --green: #a6e3a1;
+  --green-subtle: rgba(166, 227, 161, 0.15);
+  --yellow: #f9e2af;
+  --red: #f38ba8;
+  --red-subtle: rgba(243, 139, 168, 0.15);
+  --purple: #b4befe;
+  --shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+  --scrollbar-thumb: #45475a;
+  --scrollbar-hover: #7f849c;
 }

@@ -20,4 +20,13 @@ body[data-palette="rose-pine"] {
   --accent: #c4a7e7;
   --accent-hover: #d6c1ee;
   --accent-subtle: rgba(196, 167, 231, 0.16);
+  --green: #9ccfd8;
+  --green-subtle: rgba(156, 207, 216, 0.15);
+  --yellow: #f6c177;
+  --red: #eb6f92;
+  --red-subtle: rgba(235, 111, 146, 0.15);
+  --purple: #c4a7e7;
+  --shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+  --scrollbar-thumb: #403d52;
+  --scrollbar-hover: #6e6a86;
 }

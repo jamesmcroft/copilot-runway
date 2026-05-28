@@ -17,4 +17,13 @@ body[data-palette="high-contrast-dark"] {
   --accent: #ffd700;
   --accent-hover: #fff168;
   --accent-subtle: rgba(255, 215, 0, 0.18);
+  --green: #3fff7f;
+  --green-subtle: rgba(63, 255, 127, 0.18);
+  --yellow: #ffd700;
+  --red: #ff5f5f;
+  --red-subtle: rgba(255, 95, 95, 0.18);
+  --purple: #d59bff;
+  --shadow: 0 0 0 1px #ffffff;
+  --scrollbar-thumb: #ffffff;
+  --scrollbar-hover: #c8c8c8;
 }
