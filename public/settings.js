@@ -200,6 +200,9 @@
       resolved = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
     }
     document.documentElement.setAttribute('data-theme', resolved);
+    if (document.body) {
+      document.body.setAttribute('data-theme', resolved);
+    }
   }
 
   function initAppearance() {

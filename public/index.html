@@ -7,7 +7,9 @@
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
   <link rel="stylesheet" href="styles.css">
   <script>
-    // Apply theme immediately to prevent flash
+    // Apply theme immediately to prevent flash. Mirror the resolved
+    // theme onto the body once it parses so palette CSS selectors
+    // (body[data-palette][data-theme]) match without a second pass.
     (function() {
       var pref = localStorage.getItem('copilot-dashboard-theme') || 'system';
       var resolved = pref;
@@ -15,6 +17,9 @@
         resolved = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
       }
       document.documentElement.setAttribute('data-theme', resolved);
+      function applyBody() { if (document.body) document.body.setAttribute('data-theme', resolved); }
+      if (document.body) applyBody();
+      else document.addEventListener('DOMContentLoaded', applyBody, { once: true });
     })();
   </script>
   <script src="/vendor/marked.umd.js"></script>

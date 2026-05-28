@@ -10,7 +10,8 @@
   <script>
     // Apply theme + palette immediately to avoid a flash. Mirrors the
     // bootstrap in index.html so the settings page renders in the user's
-    // chosen palette on first paint.
+    // chosen palette on first paint. data-theme is mirrored onto the
+    // body so palette CSS (body[data-palette][data-theme]) matches.
     (function () {
       var pref = localStorage.getItem('copilot-dashboard-theme') || 'system';
       var resolved = pref;
@@ -18,6 +19,9 @@
         resolved = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
       }
       document.documentElement.setAttribute('data-theme', resolved);
+      function applyBody() { if (document.body) document.body.setAttribute('data-theme', resolved); }
+      if (document.body) applyBody();
+      else document.addEventListener('DOMContentLoaded', applyBody, { once: true });
     })();
   </script>
   <script src="path-match.js"></script>

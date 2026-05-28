@@ -1,9 +1,0 @@
-/*
- * Palette: Default Dark
- *
- * The default Runway dark palette lives in styles.css under
- * [data-theme="dark"]. This file is intentionally minimal: selecting
- * "Default Dark" maps to data-palette="default-dark" + data-theme="dark"
- * and lets the base stylesheet take over.
- */
-body[data-palette="default-dark"] { /* inherits base dark variables */ }

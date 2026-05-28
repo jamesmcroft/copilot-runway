@@ -1,14 +1,13 @@
 /*
- * Palette: Rose Pine (Main)
+ * Palette: Rose Pine (Main + Dawn)
  * Source:  rose-pine/palette, https://github.com/rose-pine/palette
- * License: MIT
- *   Copyright (c) 2021 Rose Pine. Standard MIT license terms.
+ * License: MIT (Copyright (c) 2021 Rose Pine)
  *
- * Marked experimental in v1. The palette id uses ASCII "rose-pine"
- * (no accent on the e) to keep URLs and file names portable; the human
- * label includes the accent in the UI.
+ * Dark variant maps to Rose Pine Main; light variant maps to Rose Pine
+ * Dawn. The palette id uses ASCII "rose-pine" (no accent on the e) so
+ * URLs and file names stay portable; the human label keeps the accent.
  */
-body[data-palette="rose-pine"] {
+body[data-palette="rose-pine"][data-theme="dark"] {
   --bg-primary: #191724;
   --bg-secondary: #1f1d2e;
   --bg-tertiary: #26233a;
@@ -29,4 +28,27 @@ body[data-palette="rose-pine"] {
   --shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
   --scrollbar-thumb: #403d52;
   --scrollbar-hover: #6e6a86;
+}
+
+body[data-palette="rose-pine"][data-theme="light"] {
+  --bg-primary: #faf4ed;
+  --bg-secondary: #fffaf3;
+  --bg-tertiary: #f2e9e1;
+  --bg-hover: #dfdad9;
+  --border: #dfdad9;
+  --text-primary: #575279;
+  --text-secondary: #797593;
+  --text-muted: #9893a5;
+  --accent: #907aa9;
+  --accent-hover: #7b6695;
+  --accent-subtle: rgba(144, 122, 169, 0.14);
+  --green: #56949f;
+  --green-subtle: rgba(86, 148, 159, 0.12);
+  --yellow: #ea9d34;
+  --red: #b4637a;
+  --red-subtle: rgba(180, 99, 122, 0.12);
+  --purple: #907aa9;
+  --shadow: 0 1px 3px rgba(87, 82, 121, 0.12);
+  --scrollbar-thumb: #dfdad9;
+  --scrollbar-hover: #9893a5;
 }

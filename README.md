@@ -98,7 +98,7 @@ Open the settings page from the gear icon in the top bar, or with the `Ctrl+,` (
 2. Global value from `settings.json`.
 3. Per-project override from `project-settings.json` (only for keys marked overridable; `worktrees.root` is global only).
 
-Visual preferences (theme mode, palette, detail-panel width) stay in browser `localStorage` so they apply without a server round-trip and never travel between machines.
+Visual preferences (theme mode, palette family, detail-panel width) stay in browser `localStorage` so they apply without a server round-trip and never travel between machines. Theme mode (`system` / `light` / `dark`) is independent from palette; eight palettes ship today: `default`, `solarized`, `monokai-inspired`, `high-contrast`, `material`, `tokyo-night`, `catppuccin`, `rose-pine`. Each palette CSS file declares both light and dark variants so flipping theme mode keeps the active palette.
 
 **Reset to defaults**: delete the relevant file under `~/.runway/` and reload. Runway will recreate it with schema defaults on the next save. For a partial reset, edit the JSON directly (Runway tolerates unknown keys and falls back to defaults if it cannot parse the file, logging a warning rather than crashing).
 

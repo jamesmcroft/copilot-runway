@@ -1,14 +1,11 @@
 /*
- * Palette: Catppuccin (Mocha)
+ * Palette: Catppuccin (Mocha + Latte)
  * Source:  catppuccin/catppuccin, https://github.com/catppuccin/catppuccin
- * License: MIT
- *   Copyright (c) 2021-present Catppuccin Org and contributors.
- *   Standard MIT license terms.
+ * License: MIT (Copyright (c) 2021-present Catppuccin Org and contributors)
  *
- * Marked experimental in v1. Maps the Mocha flavour to Runway's
- * variable shape.
+ * Dark variant maps to the Mocha flavour; light variant maps to Latte.
  */
-body[data-palette="catppuccin"] {
+body[data-palette="catppuccin"][data-theme="dark"] {
   --bg-primary: #1e1e2e;
   --bg-secondary: #181825;
   --bg-tertiary: #313244;
@@ -29,4 +26,27 @@ body[data-palette="catppuccin"] {
   --shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
   --scrollbar-thumb: #45475a;
   --scrollbar-hover: #7f849c;
+}
+
+body[data-palette="catppuccin"][data-theme="light"] {
+  --bg-primary: #eff1f5;
+  --bg-secondary: #e6e9ef;
+  --bg-tertiary: #dce0e8;
+  --bg-hover: #ccd0da;
+  --border: #ccd0da;
+  --text-primary: #4c4f69;
+  --text-secondary: #5c5f77;
+  --text-muted: #6c6f85;
+  --accent: #8839ef;
+  --accent-hover: #7227d6;
+  --accent-subtle: rgba(136, 57, 239, 0.12);
+  --green: #40a02b;
+  --green-subtle: rgba(64, 160, 43, 0.12);
+  --yellow: #df8e1d;
+  --red: #d20f39;
+  --red-subtle: rgba(210, 15, 57, 0.12);
+  --purple: #7287fd;
+  --shadow: 0 1px 3px rgba(76, 79, 105, 0.12);
+  --scrollbar-thumb: #ccd0da;
+  --scrollbar-hover: #6c6f85;
 }

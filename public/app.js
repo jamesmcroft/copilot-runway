@@ -15,6 +15,9 @@ function resolveTheme(pref) {
 function applyTheme(pref) {
   const resolved = resolveTheme(pref);
   document.documentElement.setAttribute('data-theme', resolved);
+  if (document.body) {
+    document.body.setAttribute('data-theme', resolved);
+  }
 
   // Update switcher button states
   document.querySelectorAll('.theme-btn').forEach(btn => {
