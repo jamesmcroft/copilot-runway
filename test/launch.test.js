@@ -85,7 +85,7 @@ test('vscode happy path (linux): spawn called with code [cwd] shell:false, unref
     const res = await fetch(`${baseUrl}/api/sessions/s1/launch/vscode`, { method: 'POST' });
     const body = await res.json();
     assert.equal(res.status, 200);
-    assert.deepEqual(body, { ok: true, bin: 'code' });
+    assert.deepEqual(body, { ok: true, bin: 'code', path: null });
     assert.equal(calls.length, 1);
     assert.equal(calls[0].bin, 'code');
     assert.deepEqual(calls[0].args, ['/work/repo']);

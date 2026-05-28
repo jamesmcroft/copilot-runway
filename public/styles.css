@@ -844,6 +844,60 @@ body {
 .file-item .badge.edit { color: var(--yellow); }
 .file-item .badge.create { color: var(--green); }
 
+/* Inline file events rendered in the conversation chronology (issue #35). */
+.chronology-file {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0 8px 24px;
+  padding: 4px 8px;
+  font-size: 12px;
+  font-family: 'Cascadia Code', 'Fira Code', monospace;
+  color: var(--text-secondary);
+  background: var(--bg-tertiary);
+  border-left: 2px solid var(--border);
+  border-radius: 3px;
+}
+
+.chronology-file.unattributed {
+  border-left-color: var(--yellow);
+}
+
+.chronology-file .badge {
+  font-size: 10px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--bg-hover);
+  font-family: -apple-system, sans-serif;
+  flex-shrink: 0;
+}
+
+.chronology-file .badge.edit { color: var(--yellow); }
+.chronology-file .badge.create { color: var(--green); }
+
+.chronology-file-path {
+  color: var(--text-secondary);
+  text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+a.chronology-file-path {
+  cursor: pointer;
+  color: var(--accent);
+}
+
+a.chronology-file-path:hover {
+  text-decoration: underline;
+}
+
+.chronology-load-more {
+  display: flex;
+  justify-content: center;
+  padding: 12px 0;
+}
+
 /* Checkpoints */
 .checkpoint {
   padding: 8px 10px;
