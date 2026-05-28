@@ -876,3 +876,75 @@ test('focusExisting bails out when pid is null without invoking runner', async (
   assert.equal(r.focused, false);
   assert.equal(called, false);
 });
+
+// ---------------------------------------------------------------------------
+// Branch-coverage gap closures flagged during PR #41 review (issue #43).
+// These exercise three specific branches the existing suite did not reach:
+//   1. defaultRunFocusCommand catching a synchronous spawn() throw.
+//   2. focusExisting Windows path where powershell exits 0 but stdout has no OK.
+//   3. The route-level catch around focusWindow throwing.
+// ---------------------------------------------------------------------------
+
+const { defaultRunFocusCommand } = require('../lib/launch');
+const child_process = require('child_process');
+
+test('defaultRunFocusCommand: synchronous spawn throw resolves to {code:-1, stderr:<msg>}', async () => {
+  // Regression: previously a synchronous throw from child_process.spawn (e.g. EINVAL
+  // raised before the child is constructed) would propagate out of the helper and
+  // crash the focus flow. The helper now wraps spawn() in try/catch and resolves
+  // with a structured failure so callers can fall back to spawning a new terminal.
+  const originalSpawn = child_process.spawn;
+  child_process.spawn = () => { throw new Error('synchronous-spawn-boom'); };
+  try {
+    const r = await defaultRunFocusCommand('powershell', ['-NoProfile']);
+    assert.equal(r.code, -1);
+    assert.equal(r.stdout, '');
+    assert.equal(r.stderr, 'synchronous-spawn-boom');
+  } finally {
+    child_process.spawn = originalSpawn;
+  }
+});
+
+test('focusExisting Windows: exit 0 but stdout without OK -> focused:false (no-window-handle)', async () => {
+  // Guard branch: `r.code === 0 && /OK/.test(r.stdout)`. If powershell exits 0 but
+  // the script never printed "OK" (e.g. SetForegroundWindow path never reached),
+  // we must not claim success. With empty stderr this falls through to the generic
+  // 'no-window-handle' reason rather than 'foreground-blocked'.
+  const { run } = makeFocusRunner([{ code: 0, stdout: '', stderr: '' }]);
+  const r = await focusExisting(1234, 'win32', run);
+  assert.equal(r.focused, false);
+  assert.equal(r.reason, 'no-window-handle');
+});
+
+test('terminal route: focusWindow throwing is caught and falls back to spawn with reason=<error.message>', async () => {
+  // Regression: the route used to call focusWindow without a try/catch, so any
+  // rejection from the focus helper turned into an unhandled 500. It now catches,
+  // converts the error to a structured focusResult, and continues into the spawn
+  // fallback so the user still gets a terminal.
+  const { spawn, calls } = makeSpawn(['ok']);
+  const app = makeApp({
+    spawn,
+    platform: 'linux',
+    readLaunchers: () => ({}),
+    fsAccess: async () => {},
+    getSession: sessionStub('s1', '/work/repo'),
+    getSessionPid: () => 4242,
+    isPidAlive: () => true,
+    focusWindow: async () => { throw new Error('focus-window-exploded'); },
+    env: {},
+  });
+  const { server, baseUrl } = await start(app);
+  try {
+    const res = await fetch(`${baseUrl}/api/sessions/s1/launch/terminal`, { method: 'POST' });
+    assert.equal(res.status, 200, 'route should not 500 when focusWindow throws');
+    const body = await res.json();
+    assert.equal(body.ok, true);
+    assert.equal(body.focused, false);
+    assert.equal(body.reason, 'focus-window-exploded',
+                 'reason should surface the thrown error message');
+    // Linux + a reason other than 'no-wm-tool' takes the generic hint branch.
+    assert.ok(body.hint && body.hint.includes('not supported on this platform'),
+              `hint: ${body.hint}`);
+    assert.equal(calls.length, 1, 'spawn fallback ran once after focus threw');
+  } finally { await stop(server); }
+});
