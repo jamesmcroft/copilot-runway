@@ -174,7 +174,7 @@ All endpoints are localhost-only with CORS origin protection.
 | `POST` | `/api/projects/add`                               | Add a custom project folder (`{ folderPath, name? }`)                           |
 | `GET`  | `/api/sessions?cwd=...&limit=50&active_only=true` | List sessions, optionally filtered by directory                                 |
 | `GET`  | `/api/sessions/active`                            | List all active sessions across all projects                                    |
-| `GET`  | `/api/sessions/:id`                               | Session detail with full conversation, checkpoints, and files                   |
+| `GET`  | `/api/sessions/:id`                               | Session detail with paginated chronology (turns + inline file events) and checkpoints |
 | `POST` | `/api/sessions/send`                              | Send a prompt (SSE stream). Body: `{ prompt, sessionId?, cwd?, name?, agent? }` |
 | `GET`  | `/api/agents`                                     | List available custom agents (cached 5 min)                                     |
 | `GET`  | `/api/stats`                                      | Dashboard stats (total sessions, active count, recent activity)                 |
