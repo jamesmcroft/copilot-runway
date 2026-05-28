@@ -338,13 +338,19 @@
       currentProjectKey = projectSel.value;
       $('#save-project').disabled = !currentProjectKey;
       $('#clear-project').disabled = !currentProjectKey;
+      const removeZone = $('#project-remove-zone');
       if (!currentProjectKey) {
         $('#project-fields').innerHTML = '';
+        if (removeZone) removeZone.hidden = true;
         return;
       }
       const r = await ApiClient.getProjectSettings(currentProjectKey);
       const overrides = (r.body && r.body.overrides) || {};
       renderProjectForm(schema, globalDoc, overrides);
+      if (removeZone) {
+        removeZone.hidden = false;
+        await refreshRemovalSummary();
+      }
     });
 
     // Deep-link: ?project=<absolute-path> pre-selects the matching
@@ -417,6 +423,173 @@
         summary(summaryNode, (res.body && res.body.message) || 'Clear failed.');
       }
     });
+
+    initRemovalUI();
+  }
+
+  // ---------- Project removal (issue #54) ----------
+
+  function toast(message, kind) {
+    const host = document.getElementById('toast-host');
+    if (!host) return;
+    const el = document.createElement('div');
+    el.className = `toast toast-${kind === 'error' ? 'error' : 'success'}`;
+    el.textContent = message;
+    host.appendChild(el);
+    setTimeout(() => {
+      el.classList.add('toast-leaving');
+      setTimeout(() => { try { host.removeChild(el); } catch {} }, 250);
+    }, 4000);
+  }
+
+  function projectDisplayName(projectKey) {
+    if (!projectKey) return '';
+    const match = projects.find(p => p.main_repo_path === projectKey);
+    if (match && match.name) return match.name;
+    // Fall back to the last path segment so the typed-name input has a
+    // sensible target even when the project is not in the picker.
+    const cleaned = String(projectKey).replace(/[\\/]+$/, '');
+    const parts = cleaned.split(/[\\/]/);
+    return parts[parts.length - 1] || projectKey;
+  }
+
+  let lastRemovalSummary = null;
+
+  function describeCounts(counts) {
+    if (!counts || typeof counts !== 'object') return '';
+    const parts = [];
+    function add(n, singular, plural) {
+      if (!n) return;
+      parts.push(`${n} ${n === 1 ? singular : plural}`);
+    }
+    add(counts.projects, 'project entry', 'project entries');
+    add(counts.projectSettings, 'setting override group', 'setting override groups');
+    add(counts.pins, 'pin', 'pins');
+    add(counts.sessionAgents, 'session agent mapping', 'session agent mappings');
+    add(counts.worktreeBindings, 'worktree binding', 'worktree bindings');
+    return parts.length ? `Will remove ${parts.join(', ')}.` : 'Nothing to remove.';
+  }
+
+  async function refreshRemovalSummary() {
+    if (!currentProjectKey) return;
+    const res = await ApiClient.getProjectRemovalSummary(currentProjectKey);
+    if (res.status !== 200) {
+      lastRemovalSummary = null;
+      const node = document.getElementById('project-remove-summary');
+      if (node) node.textContent = 'Could not load removal summary.';
+      return;
+    }
+    lastRemovalSummary = res.body || {};
+    const node = document.getElementById('project-remove-summary');
+    if (node) node.textContent = describeCounts(lastRemovalSummary.counts);
+  }
+
+  function openRemoveModal() {
+    if (!currentProjectKey) return;
+    const modal = document.getElementById('remove-project-modal');
+    const target = document.getElementById('remove-project-target');
+    const expected = document.getElementById('remove-project-expected');
+    const input = document.getElementById('remove-project-confirm');
+    const summaryLine = document.getElementById('remove-project-summary-line');
+    const activeBox = document.getElementById('remove-project-active');
+    const activeList = document.getElementById('remove-project-active-list');
+    const removeBtn = document.getElementById('remove-project-confirm-button');
+    const wtCheckbox = document.getElementById('remove-worktrees-checkbox');
+
+    if (!modal) return;
+    const name = projectDisplayName(currentProjectKey);
+    target.textContent = currentProjectKey;
+    expected.textContent = name;
+    input.value = '';
+    wtCheckbox.checked = true;
+    summaryLine.textContent = lastRemovalSummary ? describeCounts(lastRemovalSummary.counts) : '';
+    activeBox.hidden = true;
+    activeList.innerHTML = '';
+    removeBtn.disabled = true;
+    modal.hidden = false;
+    setTimeout(() => { try { input.focus(); } catch {} }, 0);
+
+    function onInput() {
+      removeBtn.disabled = input.value.trim() !== name;
+    }
+    input.addEventListener('input', onInput);
+
+    function cleanup() {
+      input.removeEventListener('input', onInput);
+      removeBtn.removeEventListener('click', onConfirm);
+      document.getElementById('remove-project-cancel').removeEventListener('click', onCancel);
+      modal.removeEventListener('click', onBackdrop);
+      document.removeEventListener('keydown', onKey);
+    }
+    function close() {
+      cleanup();
+      modal.hidden = true;
+    }
+    function onCancel() { close(); }
+    function onBackdrop(e) { if (e.target === modal) close(); }
+    function onKey(e) { if (e.key === 'Escape') close(); }
+
+    async function onConfirm() {
+      if (input.value.trim() !== name) return;
+      removeBtn.disabled = true;
+      const res = await ApiClient.deleteProject(currentProjectKey, {
+        removeWorktrees: wtCheckbox.checked,
+      });
+      if (res.status === 204) {
+        close();
+        toast(`Removed project ${name}.`, 'success');
+        await reloadAfterRemoval();
+      } else if (res.status === 409 && res.body && res.body.error === 'active_sessions') {
+        const ids = Array.isArray(res.body.sessionIds) ? res.body.sessionIds : [];
+        activeList.innerHTML = ids.map(id => `<li><code>${escapeHtml(id)}</code></li>`).join('');
+        activeBox.hidden = false;
+        removeBtn.disabled = false;
+      } else if (res.status === 404) {
+        close();
+        toast('Project is already removed.', 'success');
+        await reloadAfterRemoval();
+      } else if (res.status === 400) {
+        close();
+        toast('Invalid project key.', 'error');
+      } else {
+        close();
+        const msg = (res.body && (res.body.message || res.body.error)) || `HTTP ${res.status}`;
+        toast(`Remove failed: ${msg}.`, 'error');
+        removeBtn.disabled = false;
+      }
+    }
+
+    removeBtn.addEventListener('click', onConfirm);
+    document.getElementById('remove-project-cancel').addEventListener('click', onCancel);
+    modal.addEventListener('click', onBackdrop);
+    document.addEventListener('keydown', onKey);
+  }
+
+  async function reloadAfterRemoval() {
+    // Refresh the project picker, drop the per-project form, and
+    // best-effort nudge any dashboard caches via storage event so an
+    // open dashboard tab knows to re-fetch.
+    try {
+      const res = await fetch('/api/projects');
+      projects = res.ok ? await res.json() : [];
+    } catch {
+      projects = [];
+    }
+    const projectSel = document.getElementById('project-select');
+    if (projectSel) {
+      projectSel.innerHTML = '<option value="">(select a project)</option>' +
+        projects.map(p =>
+          `<option value="${escapeHtml(p.main_repo_path)}">${escapeHtml(p.name)}</option>`
+        ).join('');
+      projectSel.value = '';
+      projectSel.dispatchEvent(new Event('change'));
+    }
+    try { localStorage.setItem('runway:projects:invalidated', String(Date.now())); } catch {}
+  }
+
+  function initRemovalUI() {
+    const openBtn = document.getElementById('open-remove-project');
+    if (openBtn) openBtn.addEventListener('click', openRemoveModal);
   }
 
   if (typeof document !== 'undefined') {

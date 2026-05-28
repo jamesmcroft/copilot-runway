@@ -96,9 +96,53 @@
         <button id="save-project" type="button" disabled>Save project overrides</button>
         <button id="clear-project" type="button" class="secondary" disabled>Clear all overrides</button>
       </div>
+
+      <div id="project-remove-zone" class="project-remove-zone" hidden>
+        <h3>Remove project</h3>
+        <p class="section-help">
+          Hard-purge this project from Runway. The project entry, per-project
+          settings, pins for its sessions, and worktree bindings will all be
+          cleared. Historical session rows are preserved. Your repository on
+          disk is not touched. This action cannot be undone.
+        </p>
+        <div id="project-remove-summary" class="project-remove-summary"></div>
+        <div class="settings-actions">
+          <button id="open-remove-project" type="button" class="danger">Remove project</button>
+        </div>
+      </div>
     </section>
   </div>
+
+  <div id="remove-project-modal" class="modal-backdrop" hidden>
+    <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="remove-project-title">
+      <h2 id="remove-project-title">Remove project</h2>
+      <p class="modal-body-line" id="remove-project-target"></p>
+      <div id="remove-project-summary-line" class="modal-summary"></div>
+      <div id="remove-project-active" class="modal-error" hidden>
+        <strong>Cannot remove: active sessions are attached.</strong>
+        <p>Stop these sessions first, then retry.</p>
+        <ul id="remove-project-active-list"></ul>
+      </div>
+      <label class="modal-field">
+        <input type="checkbox" id="remove-worktrees-checkbox" checked>
+        Also delete worktree directories on disk
+      </label>
+      <label class="modal-field-text">
+        <span>Type the project name to confirm:
+          <code id="remove-project-expected"></code>
+        </span>
+        <input type="text" id="remove-project-confirm" autocomplete="off" spellcheck="false">
+      </label>
+      <div class="settings-actions modal-actions">
+        <button id="remove-project-cancel" type="button" class="secondary">Cancel</button>
+        <button id="remove-project-confirm-button" type="button" class="danger" disabled>Remove</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast-host" class="toast-host" aria-live="polite"></div>
 
   <script src="settings.js"></script>
 </body>
 </html>
+
