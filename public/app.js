@@ -786,33 +786,32 @@ function renderDetail(detail) {
     </div>
   `;
 
-  // Conversation
-  if (detail.turns && detail.turns.length > 0) {
+  // Conversation: render the merged chronology (turns + file events). A
+  // file event appears as a small indented row immediately after the
+  // assistant turn that produced it. File events with no producing turn
+  // (NULL turn_index in the store) tail the very last page as an
+  // "unattributed" group. See issue #35.
+  if (detail.chronology && detail.chronology.length > 0) {
+    const turnCount = detail.chronology.filter(i => i.kind === 'turn').length;
+    const headerSuffix = detail.has_more ? `${turnCount}+ turns` : `${turnCount} turns`;
     html += `
       <div class="detail-section">
-        <div class="detail-section-title">Conversation (${detail.turns.length} turns)</div>
-        <div class="conversation">
+        <div class="detail-section-title">Conversation (${headerSuffix})</div>
+        <div class="conversation" id="conversation-list">
     `;
-    for (const turn of detail.turns) {
-      if (turn.user_message) {
-        html += `
-          <div class="turn">
-            <div class="turn-label user">You</div>
-            <div class="turn-user">${esc(truncate(stripSystemTags(turn.user_message), 500))}</div>
-          </div>
-        `;
-      }
-      if (turn.assistant_response) {
-        const rendered = renderMarkdown(truncate(turn.assistant_response, 3000));
-        html += `
-          <div class="turn">
-            <div class="turn-label assistant">Copilot</div>
-            <div class="turn-assistant"><div class="md-content">${rendered}</div></div>
-          </div>
-        `;
-      }
+    html += renderChronologyItems(detail.id, detail.chronology, detail.cwd);
+    html += '</div>';
+    if (detail.has_more && detail.next_cursor != null) {
+      html += `
+        <div class="chronology-load-more">
+          <button class="action-btn" id="chronology-load-more-btn"
+            onclick="loadMoreChronology('${detail.id}', ${detail.next_cursor})">
+            Load older turns
+          </button>
+        </div>
+      `;
     }
-    html += '</div></div>';
+    html += '</div>';
   }
 
   // Checkpoints
@@ -1056,8 +1055,19 @@ function resumeInTerminal(sessionId) {
 
 // Launch VS Code at the session's cwd via the server-side spawn endpoint.
 async function launchVSCode(sessionId) {
+  return launchVSCodeAtPath(sessionId, null);
+}
+
+// Launch VS Code at a specific file inside the session's cwd. `targetPath`
+// can be absolute or relative to cwd; the server validates it stays
+// inside the session working directory before spawning.
+async function launchVSCodeAtPath(sessionId, targetPath) {
   try {
-    const res = await fetch(`/api/sessions/${sessionId}/launch/vscode`, { method: 'POST' });
+    const res = await fetch(`/api/sessions/${sessionId}/launch/vscode`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(targetPath ? { path: targetPath } : {}),
+    });
     const body = await res.json().catch(() => ({}));
     if (!res.ok) {
       alert(body.hint || body.error || `Failed to launch VS Code (HTTP ${res.status})`);
@@ -1068,6 +1078,83 @@ async function launchVSCode(sessionId) {
     }
   } catch (err) {
     alert(`Failed to launch VS Code: ${err.message}`);
+  }
+}
+
+// Render one page of chronology items. Returns the inner HTML; the
+// caller wraps it in a `.conversation` container.
+function renderChronologyItems(sessionId, items, sessionCwd) {
+  let html = '';
+  for (const item of items) {
+    if (item.kind === 'turn') {
+      if (item.user_message) {
+        html += `
+          <div class="turn">
+            <div class="turn-label user">You</div>
+            <div class="turn-user">${esc(truncate(stripSystemTags(item.user_message), 500))}</div>
+          </div>
+        `;
+      }
+      if (item.assistant_response) {
+        const rendered = renderMarkdown(truncate(item.assistant_response, 3000));
+        html += `
+          <div class="turn">
+            <div class="turn-label assistant">Copilot</div>
+            <div class="turn-assistant"><div class="md-content">${rendered}</div></div>
+          </div>
+        `;
+      }
+    } else if (item.kind === 'file') {
+      const tool = item.tool_name === 'create' ? 'create' : 'edit';
+      const unattributed = item.turn_index == null;
+      const pathAttr = (item.file_path || '').replace(/"/g, '&quot;');
+      const safeSessionId = String(sessionId).replace(/'/g, "\\'");
+      const safePath = (item.file_path || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+      const openable = !!(sessionCwd && item.file_path);
+      html += `
+        <div class="chronology-file${unattributed ? ' unattributed' : ''}">
+          <span class="badge ${tool}">${tool}</span>
+          ${openable
+            ? `<a class="chronology-file-path" href="#"
+                  title="${pathAttr}"
+                  onclick="event.preventDefault(); launchVSCodeAtPath('${safeSessionId}', '${safePath}')">${esc(shortenFilePath(item.file_path))}</a>`
+            : `<span class="chronology-file-path" title="${pathAttr}">${esc(shortenFilePath(item.file_path))}</span>`}
+        </div>
+      `;
+    }
+  }
+  return html;
+}
+
+// "Load older turns" click handler. Appends the next chronology page
+// without resetting scroll position. Avoids the snap-to-bottom logic in
+// renderDetail by mutating the existing DOM in place.
+async function loadMoreChronology(sessionId, cursor) {
+  const btn = document.getElementById('chronology-load-more-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Loading...'; }
+  try {
+    const page = await apiJson(`/api/sessions/${sessionId}?cursor=${encodeURIComponent(cursor)}`);
+    const list = document.getElementById('conversation-list');
+    const wrapper = btn ? btn.parentElement : null;
+    if (!list || !page.chronology) return;
+    const cwd = page.cwd || '';
+    const newHtml = renderChronologyItems(sessionId, page.chronology, cwd);
+    list.insertAdjacentHTML('beforeend', newHtml);
+    if (wrapper) {
+      if (page.has_more && page.next_cursor != null) {
+        wrapper.innerHTML = `
+          <button class="action-btn" id="chronology-load-more-btn"
+            onclick="loadMoreChronology('${sessionId}', ${page.next_cursor})">
+            Load older turns
+          </button>
+        `;
+      } else {
+        wrapper.remove();
+      }
+    }
+  } catch (err) {
+    if (btn) { btn.disabled = false; btn.textContent = 'Load older turns'; }
+    alert(`Failed to load more turns: ${err.message}`);
   }
 }
 
