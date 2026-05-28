@@ -73,12 +73,34 @@ Runway reads from the Copilot CLI's local data stores (read-only) to build the d
 
 Custom projects and app settings are stored in `~/.runway/` to keep Runway's data separate from the CLI's databases:
 
-| File                            | Purpose                                                           |
-| ------------------------------- | ----------------------------------------------------------------- |
-| `~/.runway/projects.json`       | Custom project folders added through the dashboard                |
-| `~/.runway/session-agents.json` | Last-used agent per session (auto-populated when sending prompts) |
+| File                              | Purpose                                                           |
+| --------------------------------- | ----------------------------------------------------------------- |
+| `~/.runway/projects.json`         | Custom project folders added through the dashboard                |
+| `~/.runway/session-agents.json`   | Last-used agent per session (auto-populated when sending prompts) |
+| `~/.runway/settings.json`         | Global Runway settings (worktrees root, default agent, launchers) |
+| `~/.runway/project-settings.json` | Per-project setting overrides keyed by absolute project path      |
 
-When you send a prompt, Runway spawns a `copilot` process with `-p "your prompt" --output-format json` and streams the JSONL output back to the browser via Server-Sent Events. You can optionally select a custom agent (via the CLI's `--agent` flag) — Runway remembers your choice per session.
+When you send a prompt, Runway spawns a `copilot` process with `-p "your prompt" --output-format json` and streams the JSONL output back to the browser via Server-Sent Events. You can optionally select a custom agent (via the CLI's `--agent` flag), and Runway remembers your choice per session.
+
+### Settings
+
+Open the settings page from the gear icon in the top bar, or with the `Ctrl+,` (`Cmd+,` on macOS) shortcut. The page is also reachable directly at `/settings`.
+
+**On-disk layout** (under `~/.runway/`):
+
+- `settings.json` holds the global document: `{ "schema_version": 1, "values": { ... } }`. Read on demand, cached in memory, rewritten atomically (tempfile + rename) on every save.
+- `project-settings.json` holds per-project overrides as a single map keyed by the project's absolute path: `{ "schema_version": 1, "projects": { "/abs/path": { ... } } }`.
+- `launchers.json` is the legacy editor-binary file from earlier releases. On first boot after upgrading, Runway folds its contents into `settings.json` under `launchers.vscode` and logs a deprecation warning. The old file is left in place for one release; a future version will remove it.
+
+**Resolution order** (highest precedence last):
+
+1. Hardcoded default (declared in `lib/runway/settings-schema.js`).
+2. Global value from `settings.json`.
+3. Per-project override from `project-settings.json` (only for keys marked overridable; `worktrees.root` is global only).
+
+Visual preferences (theme mode, palette, detail-panel width) stay in browser `localStorage` so they apply without a server round-trip and never travel between machines.
+
+**Reset to defaults**: delete the relevant file under `~/.runway/` and reload. Runway will recreate it with schema defaults on the next save. For a partial reset, edit the JSON directly (Runway tolerates unknown keys and falls back to defaults if it cannot parse the file, logging a warning rather than crashing).
 
 ### Live updates
 
@@ -129,8 +151,11 @@ copilot-runway/
 │   │   ├── db.js              # Read-only openers for ~/.copilot/session-store.db and data.db
 │   │   └── sessions.js        # workspace.yaml reader, lock-file/PID status, find-new-session-id
 │   ├── runway/
-│   │   ├── projects.js        # Load/save ~/.runway/projects.json (custom folders)
-│   │   └── session-agents.js  # Load/save ~/.runway/session-agents.json (per-session agent)
+│   │   ├── projects.js              # Load/save ~/.runway/projects.json (custom folders)
+│   │   ├── session-agents.js        # Load/save ~/.runway/session-agents.json (per-session agent)
+│   │   ├── settings.js              # Read/write/cache layer for settings.json and project-settings.json
+│   │   ├── settings-schema.js       # Descriptor table + defaults (single source of truth)
+│   │   └── settings-migrations.js   # Forward-only migration runner keyed by schema_version
 │   ├── watchers/
 │   │   ├── lifecycle.js       # fs.watch on ~/.copilot/session-state/, emits session.* events
 │   │   └── db.js              # Hybrid fs.watch + mtime heartbeat on session-store.db, emits db.activity
@@ -140,13 +165,19 @@ copilot-runway/
 │       ├── send.js            # POST /api/sessions/send (SSE stream of CLI events)
 │       ├── agents.js          # GET /api/agents
 │       ├── stats.js           # GET /api/stats
+│       ├── settings.js        # GET/PATCH/PUT /api/settings and /api/settings/projects/:projectKey
 │       └── events.js          # GET /api/events (SSE stream of lifecycle and DB events)
 ├── bin/
 │   └── copilot-runway.js  # CLI entry point (npx / global install)
 ├── public/
 │   ├── index.html     # Single-page app shell
+│   ├── settings.html  # Standalone settings page (loaded at /settings)
+│   ├── settings.css   # Layout for the settings page
+│   ├── settings.js    # Schema-driven settings form (UMD)
+│   ├── palettes.js    # Palette manifest + apply helper (UMD)
+│   ├── palettes/      # Per-palette CSS files, loaded on demand
 │   ├── styles.css     # Light and dark themed styles
-│   ├── app.js         # Frontend — rendering, themes, resize, markdown, API calls
+│   ├── app.js         # Frontend (rendering, themes, resize, markdown, API calls)
 │   ├── logo.svg       # App logo
 │   └── favicon.svg    # Browser tab icon
 ├── .github/
