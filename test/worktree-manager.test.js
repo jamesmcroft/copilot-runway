@@ -21,6 +21,18 @@ function git(args, cwd) {
 // Build a minimal one-commit git repo in a fresh temp dir. Sets local
 // user identity so commits succeed even when the host has no global git
 // config (CI runners often do not).
+// On macOS `os.tmpdir()` returns `/var/folders/...` while git and
+// fs.realpath canonicalize through the `/private` symlink. On Windows
+// `os.tmpdir()` may surface 8.3 short names like `RUNNER~1`. The
+// manager normalizes both to the long, symlink-resolved form, so tests
+// that compare against constructed paths must do the same. Mirror the
+// helper from worktree-manager.js so the assertions match real output.
+function canon(p) {
+  if (typeof p !== 'string' || !p) return p;
+  const real = (fs.realpathSync && fs.realpathSync.native) || fs.realpathSync;
+  try { return real(p); } catch { return path.resolve(p); }
+}
+
 function makeRepo() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'runway-wt-repo-'));
   git(['init', '--initial-branch=main'], dir);
@@ -73,10 +85,12 @@ test('create makes a worktree, creates branch, persists binding', () => {
   const b = bindings.getByPath(result.worktreePath);
   assert.equal(b.sessionId, 'abc12345-rest');
   assert.equal(b.branchName, 'runway/abc12345');
-  // Path layout: <root>/<slug>/<id-short>
+  // Path layout: <root>/<slug>/<id-short>; both sides canonicalized so
+  // the macOS /private prefix and Windows short names do not skew the
+  // comparison.
   const root = settings.getWorktreesRoot();
   const expectedSlug = manager.sanitizeProjectSlug(repo);
-  assert.equal(result.worktreePath, path.join(root, expectedSlug, 'abc12345'));
+  assert.equal(result.worktreePath, canon(path.join(root, expectedSlug, 'abc12345')));
 });
 
 test('create produces worktrees root on demand if missing', () => {
@@ -87,7 +101,10 @@ test('create produces worktrees root on demand if missing', () => {
   settings.patchGlobalSettings({ worktrees: { root: customRoot } });
   const result = manager.create({ sessionId: 'fresh001-rest', projectPath: repo });
   assert.ok(fs.existsSync(result.worktreePath));
-  assert.ok(result.worktreePath.startsWith(customRoot));
+  // result.worktreePath is canonicalized by manager.create; the raw
+  // customRoot may still carry the macOS /var prefix or a Windows short
+  // name, so compare against the canonical form.
+  assert.ok(result.worktreePath.startsWith(canon(customRoot)));
   // Reset back so other tests use the default location.
   settings.patchGlobalSettings({ worktrees: { root: path.join(tmpHome, '.runway', 'worktrees') } });
   settings.invalidateCache();
@@ -194,8 +211,7 @@ test('list reports worktrees enriched with bound session', () => {
   const items = manager.list({ projectPath: repo });
   const found = items.find(i => i.worktreePath === wt.worktreePath
     || path.resolve(i.worktreePath) === path.resolve(wt.worktreePath));
-  const allBindings = bindings.list();
-  assert.ok(found, `expected to find created worktree in list;\n  wt.worktreePath=${JSON.stringify(wt.worktreePath)}\n  items=${JSON.stringify(items)}\n  bindings=${JSON.stringify(allBindings)}`);
+  assert.ok(found, `expected to find created worktree in list; got ${JSON.stringify(items)}`);
   assert.equal(found.sessionId, 'list1234-rest');
   manager.remove({ worktreePath: wt.worktreePath, force: true });
 });
